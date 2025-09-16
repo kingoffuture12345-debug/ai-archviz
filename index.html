@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Designer Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      // Force dark theme on initial load
+      document.documentElement.classList.add('dark');
+
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              // Light theme
+              'light-primary': '#ffffff',
+              'light-secondary': '#f3f4f6',
+              'light-text': '#1f2937',
+              'light-text-secondary': '#6b7280',
+              'light-border': '#d1d5db',
+              
+              // Dark theme
+              'dark-primary': '#1e1f22',
+              'dark-secondary': '#2b2d31',
+              'dark-text': '#f2f3f5',
+              'dark-text-secondary': '#b8bac2',
+              'dark-border': '#4b5563',
+
+              // Accent
+              'accent': '#7c3aed',
+              'accent-hover': '#6d28d9',
+            },
+            animation: {
+              'fade-in': 'fadeIn 0.3s ease-out forwards',
+              'fade-in-scale': 'fadeInScale 0.3s ease-out forwards',
+              'ripple': 'ripple 1.2s cubic-bezier(0, 0, 0.2, 1) infinite',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
+              },
+              fadeInScale: {
+                '0%': { opacity: '0', transform: 'scale(0.95)' },
+                '100%': { opacity: '1', transform: 'scale(1)' },
+              },
+              ripple: {
+                '0%': { transform: 'scale(.8)', opacity: '1' },
+                '100%': { transform: 'scale(2.4)', opacity: '0' },
+              },
+            },
+          },
+        },
+      }
+    </script>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.17.0"
+  }
+}
+</script>
+</head>
+  <body class="bg-dark-primary text-dark-text">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

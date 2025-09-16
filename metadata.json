@@ -1,0 +1,7 @@
+{
+  "name": "AI ArchViz",
+  "description": "An application that uses AI to generate interior and exterior design concepts. Users can upload a 'before' image, select design types and styles, and receive a photorealistic 'after' image showcasing the transformation.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
