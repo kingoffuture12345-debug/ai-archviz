@@ -1,4 +1,4 @@
-import { DesignOption, AIModelOption, RoomOption, PaletteOption } from './types';
+import { DesignOption, AIModelOption, RoomOption, PaletteOption, BuildingOption } from './types';
 import { AtticIcon } from './components/icons/AtticIcon';
 import { BalconyIcon } from './components/icons/BalconyIcon';
 import { BathroomIcon } from './components/icons/BathroomIcon';
@@ -18,6 +18,52 @@ import { OfficeIcon } from './components/icons/OfficeIcon';
 import { RestaurantIcon } from './components/icons/RestaurantIcon';
 import { StudyRoomIcon } from './components/icons/StudyRoomIcon';
 import { ToiletIcon } from './components/icons/ToiletIcon';
+import { CustomStyleIcon } from './components/icons/CustomStyleIcon';
+import { ModernIcon } from './components/icons/ModernIcon';
+import { TropicalIcon } from './components/icons/TropicalIcon';
+import { MinimalisticIcon } from './components/icons/MinimalisticIcon';
+import { BohemianIcon } from './components/icons/BohemianIcon';
+import { RusticIcon } from './components/icons/RusticIcon';
+import { VintageIcon } from './components/icons/VintageIcon';
+import { BaroqueIcon } from './components/icons/BaroqueIcon';
+import { MediterraneanIcon } from './components/icons/MediterraneanIcon';
+import { CyberpunkIcon } from './components/icons/CyberpunkIcon';
+import { BiophilicIcon } from './components/icons/BiophilicIcon';
+import { AncientEgyptianIcon } from './components/icons/AncientEgyptianIcon';
+import { SparklesIcon } from './components/icons/SparklesIcon';
+// FIX: Import HomeIcon to fix 'Cannot find name' error.
+import { HomeIcon } from './components/icons/HomeIcon';
+// FIX: Import BuildingOfficeIcon to fix 'Cannot find name' error.
+import { BuildingOfficeIcon } from './components/icons/BuildingOfficeIcon';
+import { CoastalIcon } from './components/icons/CoastalIcon';
+import { CozyIcon } from './components/icons/CozyIcon';
+import { JapandiIcon } from './components/icons/JapandiIcon';
+import { CottagecoreIcon } from './components/icons/CottagecoreIcon';
+import { SkiChaletIcon } from './components/icons/SkiChaletIcon';
+import { GothicIcon } from './components/icons/GothicIcon';
+import { CreepyIcon } from './components/icons/CreepyIcon';
+import { MedievalIcon } from './components/icons/MedievalIcon';
+import { EightiesStyleIcon } from './components/icons/EightiesStyleIcon';
+import { CartoonIcon } from './components/icons/CartoonIcon';
+import { WoodIcon } from './components/icons/WoodIcon';
+import { ChocolateIcon } from './components/icons/ChocolateIcon';
+import { VillaIcon } from './components/icons/VillaIcon';
+import { SkyscraperIcon } from './components/icons/SkyscraperIcon';
+import { StorefrontIcon } from './components/icons/StorefrontIcon';
+import { ArtDecoIcon } from './components/icons/ArtDecoIcon';
+import { BrutalistIcon } from './components/icons/BrutalistIcon';
+import { ChineseIcon } from './components/icons/ChineseIcon';
+import { FarmHouseIcon } from './components/icons/FarmHouseIcon';
+import { FrenchIcon } from './components/icons/FrenchIcon';
+import { ItalianateIcon } from './components/icons/ItalianateIcon';
+import { JapaneseIcon } from './components/icons/JapaneseIcon';
+import { MidcenturyIcon } from './components/icons/MidcenturyIcon';
+import { MiddleEasternIcon } from './components/icons/MiddleEasternIcon';
+import { MoroccoIcon } from './components/icons/MoroccoIcon';
+import { SpanishIcon } from './components/icons/SpanishIcon';
+import { CommercialBuildingIcon } from './components/icons/CommercialBuildingIcon';
+import { MixedUseBuildingIcon } from './components/icons/MixedUseBuildingIcon';
+import { CustomBuildingIcon } from './components/icons/CustomBuildingIcon';
 
 
 export const ROOM_TYPE_OPTIONS: RoomOption[] = [
@@ -42,8 +88,20 @@ export const ROOM_TYPE_OPTIONS: RoomOption[] = [
     { label: 'غرفة أطفال (Kids Room)', prompt: 'kids room', icon: KidsRoomIcon },
 ];
 
+export const BUILDING_TYPE_OPTIONS: BuildingOption[] = [
+    { label: 'مخصص (Custom)', prompt: 'custom building', icon: CustomBuildingIcon },
+    { label: 'فيلا (Villa)', prompt: 'villa', icon: VillaIcon },
+    { label: 'ناطحة سحاب (Skyscraper)', prompt: 'skyscraper', icon: SkyscraperIcon },
+    { label: 'متجر (Storefront)', prompt: 'storefront', icon: StorefrontIcon },
+    { label: 'مبنى سكني (Apartment Bldg)', prompt: 'apartment building', icon: BuildingOfficeIcon },
+    { label: 'منزل (House)', prompt: 'house', icon: HomeIcon },
+    { label: 'مبنى تجاري (Commercial)', prompt: 'commercial building', icon: CommercialBuildingIcon },
+    { label: 'سكني تجاري (Mixed-Use)', prompt: 'mixed-use building', icon: MixedUseBuildingIcon },
+    { label: 'حديقة (Park)', prompt: 'park', icon: GardenIcon },
+];
+
 export const PALETTE_OPTIONS: PaletteOption[] = [
-    { name: 'Surprise Me', promptValue: 'surprise-me', imageUrl: 'https://i.imgur.com/6zGVd80.png' },
+    { name: 'Surprise Me', promptValue: 'surprise-me' },
     { name: 'Millennial Gray', promptValue: 'millennial-gray', colors: ['#d1d5db', '#9ca3af', '#6b7280', '#4b5563'] },
     { name: 'Terracotta Mirage', promptValue: 'terracotta-mirage', colors: ['#fecaca', '#fca5a5', '#f87171', '#ef4444'] },
     { name: 'Neon Sunset', promptValue: 'neon-sunset', colors: ['#fb923c', '#f472b6', '#eab308', '#fecaca'] },
@@ -70,49 +128,58 @@ export const PALETTE_OPTIONS: PaletteOption[] = [
 export const CUSTOM_STYLE_PROMPT = 'custom';
 
 export const INTERIOR_STYLE_OPTIONS: DesignOption[] = [
-    { label: 'Custom', prompt: CUSTOM_STYLE_PROMPT },
-    { label: 'Modern', prompt: 'in a modern style', imageUrl: 'https://i.imgur.com/6z0kL7v.jpeg' },
-    { label: 'Tropical', prompt: 'in a tropical style', imageUrl: 'https://i.imgur.com/yior2iM.jpeg' },
-    { label: 'Minimalistic', prompt: 'in a minimalistic style', imageUrl: 'https://i.imgur.com/bJLf3lS.jpeg' },
-    { label: 'Bohemian', prompt: 'in a bohemian style', imageUrl: 'https://i.imgur.com/TAz9b6p.jpeg' },
-    { label: 'Rustic', prompt: 'in a rustic style', imageUrl: 'https://i.imgur.com/ExaA5y4.jpeg' },
-    { label: 'Vintage', prompt: 'in a vintage style', imageUrl: 'https://i.imgur.com/ZSU2TzH.jpeg' },
-    { label: 'Baroque', prompt: 'in a baroque style', imageUrl: 'https://i.imgur.com/t8y5798.jpeg' },
-    { label: 'Mediterranean', prompt: 'in a mediterranean style', imageUrl: 'https://i.imgur.com/uI1mRTy.jpeg' },
-    { label: 'Cyberpunk', prompt: 'in a cyberpunk style', imageUrl: 'https://i.imgur.com/k2wAmnM.jpeg' },
-    { label: 'Biophilic', prompt: 'in a biophilic style', imageUrl: 'https://i.imgur.com/aA4Sn6m.jpeg' },
-    { label: 'Ancient Egyptian', prompt: 'in an ancient egyptian style', imageUrl: 'https://i.imgur.com/Tqo4p5b.jpeg' },
-    { label: 'Airbnb', prompt: 'in a clean, welcoming, and photogenic style suitable for an Airbnb rental', imageUrl: 'https://i.imgur.com/JFAaP9e.jpeg' },
-    { label: 'Discotheque', prompt: 'in a discotheque style', imageUrl: 'https://i.imgur.com/4LDRt28.jpeg' },
-    { label: 'Soho Style', prompt: 'in a soho style', imageUrl: 'https://i.imgur.com/2sW343a.jpeg' },
-    { label: 'Rainbow', prompt: 'in a rainbow style', imageUrl: 'https://i.imgur.com/pA30U0c.jpeg' },
-    { label: 'Luxury', prompt: 'in a luxury style', imageUrl: 'https://i.imgur.com/dM2aU2l.jpeg' },
-    { label: 'Technoland', prompt: 'in a futuristic technoland style', imageUrl: 'https://i.imgur.com/8n0gL2R.jpeg' },
-    { label: 'Gamer', prompt: 'in a gamer or e-sports inspired style', imageUrl: 'https://i.imgur.com/eD3B3kM.jpeg' },
-    { label: 'Cozy', prompt: 'in a cozy style', imageUrl: 'https://i.imgur.com/rN1fB0G.jpeg' },
-    { label: 'Coastal', prompt: 'in a coastal style', imageUrl: 'https://i.imgur.com/E5Qy5V6.jpeg' },
-    { label: 'Japandi', prompt: 'in a japandi style', imageUrl: 'https://i.imgur.com/6p3s0Lg.jpeg' },
-    { label: 'Cottagecore', prompt: 'in a cottagecore style', imageUrl: 'https://i.imgur.com/L7p4Z5j.jpeg' },
-    { label: 'Ski Chalet', prompt: 'in a ski chalet style', imageUrl: 'https://i.imgur.com/uY6d445.jpeg' },
-    { label: 'Gothic', prompt: 'in a gothic style', imageUrl: 'https://i.imgur.com/eBvB5yv.jpeg' },
-    { label: 'Creepy', prompt: 'in a creepy, haunted, or spooky style', imageUrl: 'https://i.imgur.com/XG0S2a9.jpeg' },
-    { label: 'Medieval', prompt: 'in a medieval style', imageUrl: 'https://i.imgur.com/Y1Z545v.jpeg' },
-    { label: '80s Style', prompt: 'in an 80s retro style', imageUrl: 'https://i.imgur.com/m5R6G6q.jpeg' },
-    { label: 'Cartoon', prompt: 'in a cartoon or comic book style', imageUrl: 'https://i.imgur.com/Wp7b7Lq.jpeg' },
-    { label: 'Wood', prompt: 'in a wood-centric style with natural wood finishes', imageUrl: 'https://i.imgur.com/c1g2T9s.jpeg' },
-    { label: 'Chocolate', prompt: 'in a rich, chocolate-themed style with deep brown tones', imageUrl: 'https://i.imgur.com/N6sJ6Bq.jpeg' },
+    { label: 'Custom', prompt: CUSTOM_STYLE_PROMPT, icon: CustomStyleIcon },
+    { label: 'Modern', prompt: 'in a modern style', icon: ModernIcon },
+    { label: 'Tropical', prompt: 'in a tropical style', icon: TropicalIcon },
+    { label: 'Minimalistic', prompt: 'in a minimalistic style', icon: MinimalisticIcon },
+    { label: 'Bohemian', prompt: 'in a bohemian style', icon: BohemianIcon },
+    { label: 'Rustic', prompt: 'in a rustic style', icon: RusticIcon },
+    { label: 'Vintage', prompt: 'in a vintage style', icon: VintageIcon },
+    { label: 'Baroque', prompt: 'in a baroque style', icon: BaroqueIcon },
+    { label: 'Mediterranean', prompt: 'in a mediterranean style', icon: MediterraneanIcon },
+    { label: 'Cyberpunk', prompt: 'in a cyberpunk style', icon: CyberpunkIcon },
+    { label: 'Biophilic', prompt: 'in a biophilic style', icon: BiophilicIcon },
+    { label: 'Ancient Egyptian', prompt: 'in an ancient egyptian style', icon: AncientEgyptianIcon },
+    { label: 'Airbnb', prompt: 'in a clean, welcoming, and photogenic style suitable for an Airbnb rental', icon: HomeIcon },
+    { label: 'Discotheque', prompt: 'in a discotheque style', icon: SparklesIcon },
+    { label: 'Soho Style', prompt: 'in a soho style', icon: BuildingOfficeIcon },
+    { label: 'Rainbow', prompt: 'in a rainbow style', icon: SparklesIcon },
+    { label: 'Luxury', prompt: 'in a luxury style', icon: SparklesIcon },
+    { label: 'Technoland', prompt: 'in a futuristic technoland style', icon: SparklesIcon },
+    { label: 'Gamer', prompt: 'in a gamer or e-sports inspired style', icon: GamingRoomIcon },
+    { label: 'Cozy', prompt: 'in a cozy style', icon: CozyIcon },
+    { label: 'Coastal', prompt: 'in a coastal style', icon: CoastalIcon },
+    { label: 'Japandi', prompt: 'in a japandi style', icon: JapandiIcon },
+    { label: 'Cottagecore', prompt: 'in a cottagecore style', icon: CottagecoreIcon },
+    { label: 'Ski Chalet', prompt: 'in a ski chalet style', icon: SkiChaletIcon },
+    { label: 'Gothic', prompt: 'in a gothic style', icon: GothicIcon },
+    { label: 'Creepy', prompt: 'in a creepy, haunted, or spooky style', icon: CreepyIcon },
+    { label: 'Medieval', prompt: 'in a medieval style', icon: MedievalIcon },
+    { label: '80s Style', prompt: 'in an 80s retro style', icon: EightiesStyleIcon },
+    { label: 'Cartoon', prompt: 'in a cartoon or comic book style', icon: CartoonIcon },
+    { label: 'Wood', prompt: 'in a wood-centric style with natural wood finishes', icon: WoodIcon },
+    { label: 'Chocolate', prompt: 'in a rich, chocolate-themed style with deep brown tones', icon: ChocolateIcon },
 ];
 
 export const EXTERIOR_STYLE_OPTIONS: DesignOption[] = [
-    { label: 'Custom', prompt: CUSTOM_STYLE_PROMPT },
-    { label: 'Modern', prompt: 'in a modern style', imageUrl: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=200&h=200&fit=crop&q=80' },
-    { label: 'Contemporary', prompt: 'in a contemporary style', imageUrl: 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=200&h=200&fit=crop&q=80' },
-    { label: 'Traditional', prompt: 'in a traditional style', imageUrl: 'https://images.unsplash.com/photo-1572120360610-d971b9d7767c?w=200&h=200&fit=crop&q=80' },
-    { label: 'Mediterranean', prompt: 'in a mediterranean style', imageUrl: 'https://images.unsplash.com/photo-1600585152225-358ea60c7ae8?w=200&h=200&fit=crop&q=80' },
-    { label: 'Craftsman', prompt: 'in a craftsman style', imageUrl: 'https://images.unsplash.com/photo-1598228723793-52759bba239c?w=200&h=200&fit=crop&q=80' },
-    { label: 'Asian', prompt: 'in an asian style', imageUrl: 'https://images.unsplash.com/photo-1531908916364-5557a588f253?w=200&h=200&fit=crop&q=80' },
-    { label: 'Classic', prompt: 'in a classic style', imageUrl: 'https://images.unsplash.com/photo-1613470984931-73933f3fa635?w=200&h=200&fit=crop&q=80' },
-    { label: 'Neo-Classic', prompt: 'in a neo-classic style, blending classic elegance with modern simplicity', imageUrl: 'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=200&h=200&fit=crop&q=80' },
+    { label: 'Custom', prompt: CUSTOM_STYLE_PROMPT, icon: CustomStyleIcon },
+    { label: 'Art Deco', prompt: 'in an art deco style', icon: ArtDecoIcon },
+    { label: 'Brutalist', prompt: 'in a brutalist style', icon: BrutalistIcon },
+    { label: 'Chinese', prompt: 'in a chinese style', icon: ChineseIcon },
+    { label: 'Cottage', prompt: 'in a cottage style', icon: CottagecoreIcon },
+    { label: 'Farm House', prompt: 'in a farm house style', icon: FarmHouseIcon },
+    { label: 'French', prompt: 'in a french style', icon: FrenchIcon },
+    { label: 'Gothic', prompt: 'in a gothic style', icon: GothicIcon },
+    { label: 'Italianate', prompt: 'in an italianate style', icon: ItalianateIcon },
+    { label: 'Japanese', prompt: 'in a japanese style', icon: JapaneseIcon },
+    { label: 'Mediterranean', prompt: 'in a mediterranean style', icon: MediterraneanIcon },
+    { label: 'Midcentury', prompt: 'in a midcentury modern style', icon: MidcenturyIcon },
+    { label: 'Middle Eastern', prompt: 'in a middle eastern style', icon: MiddleEasternIcon },
+    { label: 'Minimalistic', prompt: 'in a minimalistic style', icon: MinimalisticIcon },
+    { label: 'Modern', prompt: 'in a modern style', icon: ModernIcon },
+    { label: 'Morocco', prompt: 'in a moroccan style', icon: MoroccoIcon },
+    { label: 'Ski Chalet', prompt: 'in a ski chalet style', icon: SkiChaletIcon },
+    { label: 'Spanish', prompt: 'in a spanish style', icon: SpanishIcon },
 ];
 
 export const AI_MODELS: AIModelOption[] = [

@@ -1,20 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Tabs from './Tabs';
 import StyleGrid from './StyleGrid';
-import RoomSelector from './RoomSelector';
 import PaletteSelector from './PaletteSelector';
 import ImageUploader from './ImageUploader';
 import ResultDisplay from './ResultDisplay';
 import CustomStyleModal from './CustomStyleModal';
 import ImageZoomModal from './ImageZoomModal';
 import DictationButton from './DictationButton';
+import InpaintingView from './InpaintingView';
 import { WandSparklesIcon } from './icons/WandSparklesIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { TrashIcon } from './icons/TrashIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
-import { DesignType, CustomStyleDetails, DesignOption } from '../types';
-import { INTERIOR_STYLE_OPTIONS, EXTERIOR_STYLE_OPTIONS, ROOM_TYPE_OPTIONS, CUSTOM_STYLE_PROMPT, PALETTE_OPTIONS, DEFAULT_AI_MODEL } from '../constants';
+import { DesignType, CustomStyleDetails, DesignOption, RoomOption, BuildingOption } from '../types';
+import { INTERIOR_STYLE_OPTIONS, EXTERIOR_STYLE_OPTIONS, ROOM_TYPE_OPTIONS, BUILDING_TYPE_OPTIONS, CUSTOM_STYLE_PROMPT, PALETTE_OPTIONS, DEFAULT_AI_MODEL } from '../constants';
 import { generateDesign, enhancePrompt } from '../services/geminiService';
 
 // Helper to convert file to base64
@@ -89,6 +89,23 @@ const resizeAndCompressImage = (file: File, maxDimension: number = 1024): Promis
     });
 };
 
+const dataURLtoFile = (dataurl: string, filename: string): File | null => {
+    const arr = dataurl.split(',');
+    if (arr.length < 2) return null;
+
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    if (!mimeMatch) return null;
+
+    const mime = mimeMatch[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
+};
+
 
 const defaultCustomStyle: CustomStyleDetails = {
     colors: '',
@@ -98,15 +115,102 @@ const defaultCustomStyle: CustomStyleDetails = {
     textures: '',
 };
 
+interface RoomGridProps {
+    options: RoomOption[];
+    selectedValue: string;
+    onSelect: (value: string) => void;
+}
+
+const RoomGrid: React.FC<RoomGridProps> = ({ options, selectedValue, onSelect }) => {
+    return (
+        <div className="w-full">
+            <div className="grid grid-cols-4 gap-3">
+                {options.map((option) => {
+                    const isSelected = selectedValue === option.prompt;
+                    const Icon = option.icon;
+                    const cardClasses = `
+                        group aspect-square w-full bg-light-primary dark:bg-dark-primary rounded-xl 
+                        focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-secondary focus:ring-accent
+                        transition-all duration-200 transform hover:scale-105
+                        ${isSelected ? 'ring-2 ring-accent' : 'ring-1 ring-light-border dark:ring-dark-border'}
+                    `;
+
+                    return (
+                        <button
+                            key={option.prompt}
+                            onClick={() => onSelect(option.prompt)}
+                            className={cardClasses}
+                        >
+                            <div className="flex flex-col h-full p-2 text-center items-center justify-center">
+                                <div className="flex-grow flex items-center justify-center">
+                                    <Icon className={`w-7 h-7 transition-colors ${isSelected ? 'text-accent' : 'text-light-text-secondary dark:text-dark-text-secondary group-hover:text-light-text dark:group-hover:text-dark-text'}`} />
+                                </div>
+                                <span className={`block text-xs font-semibold leading-tight w-full ${isSelected ? 'text-accent' : 'text-light-text-secondary dark:text-dark-text-secondary group-hover:text-light-text dark:group-hover:text-dark-text'}`}>
+                                    {option.label}
+                                </span>
+                            </div>
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
+interface BuildingGridProps {
+    options: BuildingOption[];
+    selectedValue: string;
+    onSelect: (value: string) => void;
+}
+
+const BuildingGrid: React.FC<BuildingGridProps> = ({ options, selectedValue, onSelect }) => {
+    return (
+        <div className="w-full">
+            <div className="grid grid-cols-4 gap-3">
+                {options.map((option) => {
+                    const isSelected = selectedValue === option.prompt;
+                    const Icon = option.icon;
+                    const cardClasses = `
+                        group aspect-square w-full bg-light-primary dark:bg-dark-primary rounded-xl 
+                        focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-secondary focus:ring-accent
+                        transition-all duration-200 transform hover:scale-105
+                        ${isSelected ? 'ring-2 ring-accent' : 'ring-1 ring-light-border dark:ring-dark-border'}
+                    `;
+
+                    return (
+                        <button
+                            key={option.prompt}
+                            onClick={() => onSelect(option.prompt)}
+                            className={cardClasses}
+                        >
+                            <div className="flex flex-col h-full p-2 text-center items-center justify-center">
+                                <div className="flex-grow flex items-center justify-center">
+                                    <Icon className={`w-7 h-7 transition-colors ${isSelected ? 'text-accent' : 'text-light-text-secondary dark:text-dark-text-secondary group-hover:text-light-text dark:group-hover:text-dark-text'}`} />
+                                </div>
+                                <span className={`block text-xs font-semibold leading-tight w-full ${isSelected ? 'text-accent' : 'text-light-text-secondary dark:text-dark-text-secondary group-hover:text-light-text dark:group-hover:text-dark-text'}`}>
+                                    {option.label}
+                                </span>
+                            </div>
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
+
 function ArchitectureView() {
     const [designType, setDesignType] = useState<DesignType>(DesignType.Interior);
-    const [roomType, setRoomType] = useState<string>(ROOM_TYPE_OPTIONS[0].prompt);
+    const [roomType, setRoomType] = useState<string>(ROOM_TYPE_OPTIONS[1].prompt);
+    const [buildingType, setBuildingType] = useState<string>(BUILDING_TYPE_OPTIONS[0].prompt);
     const [style, setStyle] = useState<string>(INTERIOR_STYLE_OPTIONS[1].prompt); // Default to 'Modern'
     const [customStyleDetails, setCustomStyleDetails] = useState<CustomStyleDetails>(defaultCustomStyle);
     const [selectedPalette, setSelectedPalette] = useState<string>(PALETTE_OPTIONS[0].promptValue);
     
     const [mainImage, setMainImage] = useState<{ file: File; url: string; base64: { data: string; mimeType: string } } | null>(null);
     const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+    const [imageToEdit, setImageToEdit] = useState<string | null>(null);
     
     const [isLoading, setIsLoading] = useState(false);
     const [isEnhancing, setIsEnhancing] = useState(false);
@@ -116,15 +220,28 @@ function ArchitectureView() {
     const [originalPromptBeforeEnhance, setOriginalPromptBeforeEnhance] = useState<string | null>(null);
     const [zoomedImage, setZoomedImage] = useState<string | null>(null);
     const [textBeforeDictation, setTextBeforeDictation] = useState('');
+    const [isRoomGridOpen, setIsRoomGridOpen] = useState(false);
     const [isStyleGridOpen, setIsStyleGridOpen] = useState(false);
     const [isPaletteSectionOpen, setIsPaletteSectionOpen] = useState(false);
+
+    const styleOptions = useMemo<DesignOption[]>(() => {
+        return designType === DesignType.Interior ? INTERIOR_STYLE_OPTIONS : EXTERIOR_STYLE_OPTIONS;
+    }, [designType]);
+
+    const selectedRoomLabel = useMemo(() => ROOM_TYPE_OPTIONS.find(opt => opt.prompt === roomType)?.label, [roomType]);
+    const selectedBuildingLabel = useMemo(() => BUILDING_TYPE_OPTIONS.find(opt => opt.prompt === buildingType)?.label, [buildingType]);
+    const selectedStyleLabel = useMemo(() => styleOptions.find(opt => opt.prompt === style)?.label, [style, styleOptions]);
+    const selectedPaletteLabel = useMemo(() => PALETTE_OPTIONS.find(opt => opt.promptValue === selectedPalette)?.name, [selectedPalette]);
     
     // Memoize the generated prompt based on user selections
     const generatedPrompt = useMemo(() => {
         const selectedRoom = ROOM_TYPE_OPTIONS.find(r => r.prompt === roomType);
         const roomName = selectedRoom?.prompt || 'interior space';
 
-        const designTypeText = designType === DesignType.Interior ? `the ${roomName}` : 'the building exterior';
+        const selectedBuilding = BUILDING_TYPE_OPTIONS.find(b => b.prompt === buildingType);
+        const buildingName = selectedBuilding?.prompt || 'building';
+
+        const designTypeText = designType === DesignType.Interior ? `the ${roomName}` : `the ${buildingName} exterior`;
         // A more direct instruction to prevent conversational text responses.
         const instruction = "The output must ONLY be the final photorealistic image.";
 
@@ -156,14 +273,13 @@ function ArchitectureView() {
 
         return `${basePrompt} ${instruction}`;
 
-    }, [style, designType, customStyleDetails, roomType, selectedPalette]);
+    }, [style, designType, customStyleDetails, roomType, buildingType, selectedPalette]);
     
     // Update the editable prompt whenever the generated one changes
     useEffect(() => {
         setEditablePrompt(generatedPrompt);
         setOriginalPromptBeforeEnhance(null); // Reset revert state when prompt auto-updates
     }, [generatedPrompt]);
-
 
     // Handlers
     const handleDesignTypeChange = (type: DesignType) => {
@@ -283,13 +399,29 @@ function ArchitectureView() {
         setEditablePrompt(textBeforeDictation + separator + finalTranscript);
     };
 
-    const styleOptions = useMemo<DesignOption[]>(() => {
-        return designType === DesignType.Interior ? INTERIOR_STYLE_OPTIONS : EXTERIOR_STYLE_OPTIONS;
-    }, [designType]);
-
     const isClearAllActive = !!mainImage || !!generatedImage;
 
     const placeholderText = "أدخل وصفًا تفصيليًا للتصميم المطلوب...";
+
+    const handleInpaintingComplete = (newImageUrl: string) => {
+        const newFile = dataURLtoFile(newImageUrl, 'edited-before.png');
+        if (newFile) {
+            handleMainImageUpload(newFile);
+        } else {
+            setError("Failed to process edited image.");
+        }
+        setImageToEdit(null);
+    };
+
+    if (imageToEdit) {
+        return (
+            <InpaintingView 
+                imageUrl={imageToEdit}
+                onClose={() => setImageToEdit(null)}
+                onComplete={handleInpaintingComplete}
+            />
+        );
+    }
 
     return (
         <React.Fragment>
@@ -297,15 +429,69 @@ function ArchitectureView() {
                 <div className="bg-light-secondary dark:bg-dark-secondary p-4 rounded-2xl shadow-lg space-y-4">
                     <Tabs selected={designType} onSelect={handleDesignTypeChange} />
                     
-                    {designType === DesignType.Interior && (
+                    {designType === DesignType.Interior ? (
                         <div className="animate-fade-in">
-                            <RoomSelector
-                                id="room-select"
-                                label="اختر نوع الغرفة أو المكان"
-                                options={ROOM_TYPE_OPTIONS}
-                                value={roomType}
-                                onChange={setRoomType}
-                            />
+                            <button 
+                                onClick={() => setIsRoomGridOpen(!isRoomGridOpen)}
+                                className="w-full flex justify-between items-center py-2 text-right"
+                                aria-expanded={isRoomGridOpen}
+                                aria-controls="room-grid-container"
+                            >
+                                <div className="flex-grow">
+                                    <h3 className="text-lg font-bold text-light-text dark:text-dark-text">اختر نوع الغرفة أو المكان</h3>
+                                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                                        حدد نوع المساحة التي تريد تصميمها.
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-3 flex-shrink-0">
+                                    <span className="text-sm font-semibold text-accent">{selectedRoomLabel}</span>
+                                    <ChevronDownIcon className={`w-5 h-5 text-dark-text-secondary transition-transform duration-300 flex-shrink-0 ${isRoomGridOpen ? 'rotate-180' : ''}`} />
+                                </div>
+                            </button>
+                            <div 
+                                id="room-grid-container"
+                                className={`transition-all duration-500 ease-in-out overflow-hidden ${isRoomGridOpen ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}
+                            >
+                                <div className="pt-3">
+                                    <RoomGrid
+                                        options={ROOM_TYPE_OPTIONS}
+                                        selectedValue={roomType}
+                                        onSelect={setRoomType}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="animate-fade-in">
+                            <button 
+                                onClick={() => setIsRoomGridOpen(!isRoomGridOpen)}
+                                className="w-full flex justify-between items-center py-2 text-right"
+                                aria-expanded={isRoomGridOpen}
+                                aria-controls="building-grid-container"
+                            >
+                                <div className="flex-grow">
+                                    <h3 className="text-lg font-bold text-light-text dark:text-dark-text">اختر نوع المبنى</h3>
+                                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                                        حدد نوع المبنى الذي تريد تصميمه.
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-3 flex-shrink-0">
+                                    <span className="text-sm font-semibold text-accent">{selectedBuildingLabel}</span>
+                                    <ChevronDownIcon className={`w-5 h-5 text-dark-text-secondary transition-transform duration-300 flex-shrink-0 ${isRoomGridOpen ? 'rotate-180' : ''}`} />
+                                </div>
+                            </button>
+                            <div 
+                                id="building-grid-container"
+                                className={`transition-all duration-500 ease-in-out overflow-hidden ${isRoomGridOpen ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}
+                            >
+                                <div className="pt-3">
+                                    <BuildingGrid
+                                        options={BUILDING_TYPE_OPTIONS}
+                                        selectedValue={buildingType}
+                                        onSelect={setBuildingType}
+                                    />
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -322,7 +508,10 @@ function ArchitectureView() {
                                     اختر نمط التصميم الذي تريده لبدء إنشاء تصميمك الداخلي المثالي.
                                 </p>
                             </div>
-                            <ChevronDownIcon className={`w-5 h-5 text-dark-text-secondary transition-transform duration-300 flex-shrink-0 ${isStyleGridOpen ? 'rotate-180' : ''}`} />
+                            <div className="flex items-center gap-3 flex-shrink-0">
+                                <span className="text-sm font-semibold text-accent">{selectedStyleLabel}</span>
+                                <ChevronDownIcon className={`w-5 h-5 text-dark-text-secondary transition-transform duration-300 flex-shrink-0 ${isStyleGridOpen ? 'rotate-180' : ''}`} />
+                            </div>
                         </button>
                         <div 
                             id="style-grid-container"
@@ -351,7 +540,10 @@ function ArchitectureView() {
                                     Choose a color palette to bring your vision to life!
                                 </p>
                             </div>
-                            <ChevronDownIcon className={`w-5 h-5 text-dark-text-secondary transition-transform duration-300 flex-shrink-0 ${isPaletteSectionOpen ? 'rotate-180' : ''}`} />
+                            <div className="flex items-center gap-3 flex-shrink-0">
+                                <span className="text-sm font-semibold text-accent">{selectedPaletteLabel}</span>
+                                <ChevronDownIcon className={`w-5 h-5 text-dark-text-secondary transition-transform duration-300 flex-shrink-0 ${isPaletteSectionOpen ? 'rotate-180' : ''}`} />
+                            </div>
                         </button>
                          <div 
                             id="palette-selector-container"
@@ -464,7 +656,7 @@ function ArchitectureView() {
                     <ImageUploader 
                         onImageUpload={handleMainImageUpload}
                         beforeImage={mainImage?.url || null}
-                        onImageClick={() => mainImage && setZoomedImage(mainImage.url)}
+                        onImageClick={() => mainImage && setImageToEdit(mainImage.url)}
                     />
                     <ResultDisplay 
                         afterImage={generatedImage}

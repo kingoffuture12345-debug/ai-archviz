@@ -1,19 +1,25 @@
 import React from 'react';
 import { DesignOption } from '../types';
-import { CustomStyleIcon } from './icons/CustomStyleIcon';
 
 interface StyleGridProps {
     options: DesignOption[];
     selectedValue: string;
     onSelect: (value: string) => void;
+    columns?: number;
 }
 
-const StyleGrid: React.FC<StyleGridProps> = ({ options, selectedValue, onSelect }) => {
+const StyleGrid: React.FC<StyleGridProps> = ({ options, selectedValue, onSelect, columns = 4 }) => {
+    const gridColsClass = {
+        2: 'grid-cols-2',
+        4: 'grid-cols-4',
+    }[columns] || 'grid-cols-4';
+    
     return (
         <div className="w-full">
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+            <div className={`grid ${gridColsClass} gap-3`}>
                 {options.map((option) => {
                     const isSelected = selectedValue === option.prompt;
+                    const Icon = option.icon;
                     const cardClasses = `
                         group aspect-square w-full bg-light-primary dark:bg-dark-primary rounded-xl 
                         focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-secondary focus:ring-accent
@@ -22,24 +28,18 @@ const StyleGrid: React.FC<StyleGridProps> = ({ options, selectedValue, onSelect 
                     `;
 
                     return (
-                        <button key={option.prompt} onClick={() => onSelect(option.prompt)} className={cardClasses}>
-                            <div className="flex flex-col items-center justify-between h-full p-2">
-                                <div className="flex-grow w-full flex items-center justify-center overflow-hidden rounded-md">
-                                    {option.imageUrl ? (
-                                        <img 
-                                            src={option.imageUrl} 
-                                            alt={option.label}
-                                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" 
-                                            loading="lazy"
-                                        />
-                                    ) : (
-                                        // Special case for Custom style
-                                        <div className="w-full h-full flex items-center justify-center bg-light-secondary dark:bg-dark-secondary rounded-md">
-                                            <CustomStyleIcon className="w-8 h-8 text-accent" />
-                                        </div>
+                        <button
+                            key={option.prompt}
+                            onClick={() => onSelect(option.prompt)}
+                            className={cardClasses}
+                        >
+                            <div className="flex flex-col h-full p-2 text-center">
+                                <div className="flex-grow flex items-center justify-center">
+                                    {Icon && (
+                                        <Icon className={`w-8 h-8 transition-colors duration-200 ${isSelected ? 'text-accent' : 'text-light-text-secondary dark:text-dark-text-secondary group-hover:text-light-text dark:group-hover:text-dark-text'}`} />
                                     )}
                                 </div>
-                                <span className={`block text-xs font-semibold mt-2 text-center truncate w-full ${isSelected ? 'text-accent' : 'text-light-text-secondary dark:text-dark-text-secondary group-hover:text-light-text dark:group-hover:text-dark-text'}`}>
+                                <span className={`block text-xs font-semibold leading-tight w-full ${isSelected ? 'text-accent' : 'text-light-text-secondary dark:text-dark-text-secondary group-hover:text-light-text dark:group-hover:text-dark-text'}`}>
                                     {option.label}
                                 </span>
                             </div>

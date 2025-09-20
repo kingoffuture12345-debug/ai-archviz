@@ -4,6 +4,7 @@ import ResultDisplay from './ResultDisplay';
 import ImageZoomModal from './ImageZoomModal';
 import DictationButton from './DictationButton';
 import ReferenceImageUploader from './ReferenceImageUploader';
+import InpaintingView from './InpaintingView';
 import { WandSparklesIcon } from './icons/WandSparklesIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
@@ -83,6 +84,23 @@ const resizeAndCompressImage = (file: File, maxDimension: number = 1024): Promis
     });
 };
 
+const dataURLtoFile = (dataurl: string, filename: string): File | null => {
+    const arr = dataurl.split(',');
+    if (arr.length < 2) return null;
+
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    if (!mimeMatch) return null;
+
+    const mime = mimeMatch[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
+};
+
 
 function ImageEditingView() {
     const [mainImage, setMainImage] = useState<{ file: File; url: string; base64: { data: string; mimeType: string } } | null>(null);
@@ -90,6 +108,7 @@ function ImageEditingView() {
     const [prompt, setPrompt] = useState('');
     const [originalPromptBeforeEnhance, setOriginalPromptBeforeEnhance] = useState<string | null>(null);
     const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+    const [imageToEdit, setImageToEdit] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [isEnhancing, setIsEnhancing] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -229,6 +248,26 @@ function ImageEditingView() {
 
     const isClearAllActive = !!mainImage || !!generatedImage || referenceImages.length > 0;
     const placeholderText = "مثال: أضف قبعة رعاة البقر، غير الخلفية إلى شاطئ مشمس...";
+    
+    const handleInpaintingComplete = (newImageUrl: string) => {
+        const newFile = dataURLtoFile(newImageUrl, 'edited-before.png');
+        if (newFile) {
+            handleMainImageUpload(newFile);
+        } else {
+            setError("Failed to process edited image.");
+        }
+        setImageToEdit(null);
+    };
+
+    if (imageToEdit) {
+        return (
+            <InpaintingView
+                imageUrl={imageToEdit}
+                onClose={() => setImageToEdit(null)}
+                onComplete={handleInpaintingComplete}
+            />
+        );
+    }
 
     return (
         <React.Fragment>
@@ -338,7 +377,7 @@ function ImageEditingView() {
                     <ImageUploader 
                         onImageUpload={handleMainImageUpload}
                         beforeImage={mainImage?.url || null}
-                        onImageClick={() => mainImage && setZoomedImage(mainImage.url)}
+                        onImageClick={() => mainImage && setImageToEdit(mainImage.url)}
                     />
                     <ResultDisplay 
                         afterImage={generatedImage}

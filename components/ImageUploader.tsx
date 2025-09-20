@@ -5,15 +5,36 @@ interface ImageUploaderProps {
     onImageUpload: (file: File) => void;
     beforeImage: string | null;
     onImageClick: () => void;
+    accept?: string;
+    uploadText?: string;
+    uploadSubText?: string;
 }
 
-const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload, beforeImage, onImageClick }) => {
+const ImageUploader: React.FC<ImageUploaderProps> = ({ 
+    onImageUpload, 
+    beforeImage, 
+    onImageClick,
+    accept = "image/png, image/jpeg, image/webp",
+    uploadText = "اسحب وأفلت الصورة هنا",
+    uploadSubText = "أو انقر للاختيار من جهازك"
+}) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDraggingOver, setIsDraggingOver] = useState(false);
 
+    const acceptedTypes = accept.split(',').map(t => t.trim());
+    const isValidFileType = (file: File): boolean => {
+        return acceptedTypes.some(acceptedType => {
+            if (acceptedType.endsWith('/*')) {
+                const baseType = acceptedType.slice(0, -1);
+                return file.type.startsWith(baseType);
+            }
+            return file.type === acceptedType;
+        });
+    };
+
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (file && file.type.startsWith('image/')) {
+        if (file && isValidFileType(file)) {
             onImageUpload(file);
         }
     };
@@ -23,7 +44,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload, beforeImag
         event.stopPropagation();
         setIsDraggingOver(false);
         const file = event.dataTransfer.files?.[0];
-        if (file && file.type.startsWith('image/')) {
+        if (file && isValidFileType(file)) {
             onImageUpload(file);
         }
     };
@@ -67,7 +88,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload, beforeImag
                     type="file"
                     ref={fileInputRef}
                     onChange={handleFileChange}
-                    accept="image/png, image/jpeg, image/webp"
+                    accept={accept}
                     className="hidden"
                 />
                 {beforeImage ? (
@@ -75,8 +96,8 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload, beforeImag
                 ) : (
                     <div className={`text-center text-light-text-secondary dark:text-dark-text-secondary p-4 pointer-events-none transition-all duration-300 ease-in-out transform ${isDraggingOver ? 'scale-105 opacity-80' : 'scale-100'}`}>
                         <UploadIcon className="w-12 h-12 mx-auto mb-2" />
-                        <p className="font-semibold">اسحب وأفلت الصورة هنا</p>
-                        <p className="text-sm">أو انقر للاختيار من جهازك</p>
+                        <p className="font-semibold">{uploadText}</p>
+                        <p className="text-sm">{uploadSubText}</p>
                     </div>
                 )}
             </div>

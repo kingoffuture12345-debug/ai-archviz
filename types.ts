@@ -9,15 +9,23 @@ export enum DesignType {
 export enum AppMode {
     Architecture = 'Architecture',
     ImageEditing = 'ImageEditing',
+    PlanToView = 'PlanToView',
 }
 
 export interface DesignOption {
     label: string;
     prompt: string;
     imageUrl?: string;
+    icon?: React.FC<React.SVGProps<SVGSVGElement>>;
 }
 
 export interface RoomOption {
+    label:string;
+    prompt: string;
+    icon: React.FC<React.SVGProps<SVGSVGElement>>;
+}
+
+export interface BuildingOption {
     label:string;
     prompt: string;
     icon: React.FC<React.SVGProps<SVGSVGElement>>;

@@ -1,5 +1,6 @@
 import React from 'react';
 import { PaletteOption } from '../types';
+import { SparklesIcon } from './icons/SparklesIcon';
 
 interface PaletteSelectorProps {
     options: PaletteOption[];
@@ -10,7 +11,7 @@ interface PaletteSelectorProps {
 const PaletteSelector: React.FC<PaletteSelectorProps> = ({ options, selectedValue, onSelect }) => {
     return (
         <div className="w-full">
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+            <div className="grid grid-cols-4 gap-3">
                 {options.map((option) => {
                     const isSelected = selectedValue === option.promptValue;
                     const cardClasses = `
@@ -24,7 +25,11 @@ const PaletteSelector: React.FC<PaletteSelectorProps> = ({ options, selectedValu
                         <button key={option.promptValue} onClick={() => onSelect(option.promptValue)} className={cardClasses}>
                             <div className="flex flex-col items-center justify-between h-full p-2">
                                 <div className="flex-grow w-full flex items-center justify-center overflow-hidden rounded-md">
-                                    {option.imageUrl ? (
+                                    {option.promptValue === 'surprise-me' ? (
+                                        <div className="w-full h-full flex items-center justify-center rounded-md bg-gradient-to-br from-red-500 via-yellow-400 to-blue-500">
+                                            <SparklesIcon className="w-8 h-8 text-white" />
+                                        </div>
+                                    ) : option.imageUrl ? (
                                         <img 
                                             src={option.imageUrl} 
                                             alt={option.name}

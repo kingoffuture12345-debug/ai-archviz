@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Header from './components/Header';
 import ArchitectureView from './components/ArchitectureView';
 import ImageEditingView from './components/ImageEditingView';
+import PlanToView from './components/PlanTo3DView';
 import { AppMode } from './types';
 
 function App() {
@@ -21,6 +22,9 @@ function App() {
                     </div>
                     <div hidden={appMode !== AppMode.ImageEditing}>
                         <ImageEditingView />
+                    </div>
+                    <div hidden={appMode !== AppMode.PlanToView}>
+                        <PlanToView />
                     </div>
                 </main>
             </div>

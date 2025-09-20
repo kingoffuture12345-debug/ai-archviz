@@ -3,6 +3,7 @@ import { AppMode } from '../types';
 import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
 import { PencilSquareIcon } from './icons/PencilSquareIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
+import { MapIcon } from './icons/MapIcon';
 
 interface AppModeSwitcherProps {
     currentMode: AppMode;
@@ -17,6 +18,10 @@ const modeDetails = {
     [AppMode.ImageEditing]: {
         label: 'تعديل الصور',
         icon: PencilSquareIcon,
+    },
+    [AppMode.PlanToView]: {
+        label: 'تحويل المخطط',
+        icon: MapIcon,
     }
 };
 
