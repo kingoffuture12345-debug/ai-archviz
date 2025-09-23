@@ -21,7 +21,7 @@ async function withApiLock(apiCall) {
 export const generateDesign = async (prompt, mainImageData, referenceImageData, modelId) => {
     return withApiLock(async () => {
         try {
-            const response = await fetch('http://localhost:3000/generate-image', {
+            const response = await fetch('https://ai-proxy-server-nu.vercel.app/generate-image', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -53,7 +53,7 @@ export const generateDesign = async (prompt, mainImageData, referenceImageData, 
 export const enhancePrompt = async (userPrompt, mode, context, image) => {
     return withApiLock(async () => {
         try {
-            const response = await fetch('http://localhost:3000/enhance-prompt', {
+            const response = await fetch('https://ai-proxy-server-nu.vercel.app/enhance-prompt', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
