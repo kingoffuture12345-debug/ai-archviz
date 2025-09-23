@@ -1,14 +1,15 @@
-import express from 'express';
-import { GoogleGenAI } from '@google/genai';
-import cors from 'cors';
-import 'dotenv/config';
-import fs from 'fs';
+const express = require('express');
+const { GoogleGenAI } = require('@google/genai');
+const cors = require('cors');
+require('dotenv').config();
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 app.use(cors({
   origin: 'https://ai-archviz.vercel.app',
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json({ limit: '50mb' }));
@@ -90,5 +91,5 @@ app.post('/enhance-prompt', async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`Server is running at http://localhost:${port}`);
+  console.log(`Server is running on port ${port}`);
 });
