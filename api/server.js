@@ -89,7 +89,7 @@ const enhancePromptHandler = async (req, res) => {
   }
 };
 
-app.post('/generate-image', generateImageHandler);
-app.post('/enhance-prompt', enhancePromptHandler);
+app.post('/api/generate-image', generateImageHandler);
+app.post('/api/enhance-prompt', enhancePromptHandler);
 
 module.exports = app;
