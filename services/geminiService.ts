@@ -1,48 +1,37 @@
-// geminiService.ts
-let isApiBusy = false;
+export const generateDesign = async (prompt, mainImageData, referenceImageData, modelId) => {
+    return withApiLock(async () => {
+        try {
+            const response = await fetch('/api/generate-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    prompt,
+                    mainImageData,
+                    referenceImageData,
+                    modelId
+                })
+            });
 
-async function withApiLock(apiCall: () => Promise<any>) {
-  if (isApiBusy) throw new Error("The AI is currently busy. Please wait.");
-  isApiBusy = true;
-  try {
-    return await apiCall();
-  } finally {
-    setTimeout(() => { isApiBusy = false; }, 300);
-  }
-}
+            if (!response.ok) {
+                const errorData = await response.json();
+                
+                // معالجة خاصة عند نفاد الحصة
+                if (errorData.error?.status === "RESOURCE_EXHAUSTED") {
+                    throw new Error("تم استنفاد حصة API الخاصة بك. حاول لاحقاً أو تحقق من خطة الاشتراك المدفوعة.");
+                }
 
-export const generateDesign = async (prompt: string, mainImage: string, referenceImage?: string[], modelId = "gemini-2.5-flash-image-preview") => {
-  return withApiLock(async () => {
-    const response = await fetch("/api/generate-image", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, mainImageData: mainImage, referenceImageData: referenceImage, modelId }),
+                throw new Error(`Server returned an error: ${errorData.error?.message || "Unknown error"}`);
+            }
+
+            const data = await response.json();
+            return data.base64Image;
+
+        } catch (error) {
+            console.error("Error calling proxy server:", error);
+            if (error instanceof Error) {
+                throw new Error(`Failed to generate design. ${error.message}`);
+            }
+            throw new Error('An unknown error occurred while communicating with the proxy server.');
+        }
     });
-
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(`Server returned an error: ${err.error}`);
-    }
-
-    const data = await response.json();
-    return data.base64Image;
-  });
-};
-
-export const enhancePrompt = async (userPrompt: string, mode?: string, context?: any, image?: string) => {
-  return withApiLock(async () => {
-    const response = await fetch("/api/enhance-prompt", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userPrompt, mode, context, image }),
-    });
-
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(`Server returned an error: ${err.error}`);
-    }
-
-    const data = await response.json();
-    return data.enhancedText;
-  });
 };
