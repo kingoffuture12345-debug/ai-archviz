@@ -4,7 +4,6 @@ const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
-const port = process.env.PORT || 3000;
 
 app.use(cors({
   origin: 'https://ai-archviz.vercel.app',
@@ -16,7 +15,7 @@ app.use(express.json({ limit: '50mb' }));
 
 const genAI = new GoogleGenerativeAI(process.env.API_KEY);
 
-app.post('/generate-image', async (req, res) => {
+const generateImageHandler = async (req, res) => {
   try {
     const { prompt, mainImageData, referenceImageData, modelId } = req.body;
 
@@ -53,9 +52,9 @@ app.post('/generate-image', async (req, res) => {
     console.error('Error generating image:', error);
     res.status(500).json({ error: error.message });
   }
-});
+};
 
-app.post('/enhance-prompt', async (req, res) => {
+const enhancePromptHandler = async (req, res) => {
   try {
     const { userPrompt, mode, context, image } = req.body;
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
@@ -88,8 +87,9 @@ app.post('/enhance-prompt', async (req, res) => {
     console.error("Error enhancing prompt:", error);
     res.status(500).json({ error: error.message });
   }
-});
+};
 
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-});
+app.post('/generate-image', generateImageHandler);
+app.post('/enhance-prompt', enhancePromptHandler);
+
+module.exports = app;
