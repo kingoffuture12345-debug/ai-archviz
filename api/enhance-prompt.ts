@@ -1,30 +1,63 @@
-import { GoogleGenerativeAI } from "@google/genai";
+import { VercelRequest, VercelResponse } from '@vercel/node';
+import { GoogleGenAI, Modality } from '@google/genai';
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+const client = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-  try {
-    const { userPrompt, mode, context, image } = req.body;
-    const genAI = new GoogleGenerativeAI(process.env.API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+    if (req.method !== 'POST') {
+        res.status(405).json({ error: 'Method not allowed' });
+        return;
+    }
 
-    const parts = [
-      { text: "Enhance the following prompt for an AI image generator:" },
-      { text: `User Prompt: ${userPrompt}` },
-      ...(mode ? [{ text: `Style: ${mode}` }] : []),
-      ...(context ? [{ text: `Context: ${context}` }] : []),
-      ...(image ? [{ inlineData: { data: image.split(',')[1], mimeType: 'image/jpeg' } }] : []),
-    ];
+    try {
+        const { userPrompt, mode, context, image } = req.body;
 
-    const result = await model.generateContent({ contents: [{ role: "user", parts }] });
-    const enhancedText = result.candidates[0].content.parts[0].text;
+        if (!userPrompt) {
+            res.status(400).json({ error: 'Missing required field: userPrompt' });
+            return;
+        }
 
-    return res.status(200).json({ enhancedText });
+        const parts: any[] = [
+            { text: "Enhance the following prompt for an AI image generator:" },
+            { text: `User Prompt: ${userPrompt}` },
+        ];
 
-  } catch (error) {
-    console.error("Error enhancing prompt:", error);
-    return res.status(500).json({ error: error.message });
-  }
+        if (mode) {
+            parts.push({ text: `Style: ${mode}` });
+        }
+
+        if (context) {
+            parts.push({ text: `Context: ${JSON.stringify(context)}` });
+        }
+
+        if (image) {
+            parts.unshift({
+                inlineData: {
+                    data: image.split(',')[1],
+                    mimeType: 'image/jpeg'
+                }
+            });
+        }
+
+        const response = await client.models.generateContent({
+            model: 'gemini-1.5-pro',
+            contents: { parts },
+            config: { responseModalities: [Modality.TEXT] }
+        });
+
+        const candidate = response.candidates?.[0];
+        if (!candidate || !candidate.content?.parts) {
+            throw new Error('No enhanced prompt returned from AI model');
+        }
+
+        const textPart = candidate.content.parts.find((p: any) => p.text);
+        if (!textPart) {
+            throw new Error('AI model returned content without text');
+        }
+
+        res.status(200).json({ enhancedText: textPart.text });
+    } catch (error: any) {
+        console.error('Error enhancing prompt:', error);
+        res.status(500).json({ error: error.message || 'Unknown error' });
+    }
 }
