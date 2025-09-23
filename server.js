@@ -1,5 +1,5 @@
 const express = require('express');
-const { GoogleGenAI } = require('@google/genai');
+const { GoogleGenerativeAI } = require('@google/genai');
 const cors = require('cors');
 require('dotenv').config();
 
@@ -14,7 +14,7 @@ app.use(cors({
 
 app.use(express.json({ limit: '50mb' }));
 
-const genAI = new GoogleGenAI(process.env.API_KEY);
+const genAI = new GoogleGenerativeAI(process.env.API_KEY);
 
 app.post('/generate-image', async (req, res) => {
   try {
