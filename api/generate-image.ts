@@ -1,5 +1,5 @@
 import { GoogleGenAI, Modality } from "@google/genai";
-import type { NextApiRequest, NextApiResponse } from 'next';
+import type { NextApiRequest, NextApiResponse } from "next";
 
 const aiClient = new GoogleGenAI({
   apiKey: process.env.API_KEY!,
@@ -17,34 +17,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "prompt and modelId are required" });
     }
 
-    const referenceParts = referenceImageData
-      ? referenceImageData.map((img: string) => ({
-          inlineData: {
-            data: img.includes(',') ? img.split(',')[1] : img,
-            mimeType: 'image/jpeg',
-          },
-        }))
+    // تحويل الصور إلى Base64 فقط إذا كانت strings
+    const processImage = (img: any) => {
+      if (!img || typeof img !== "string") return null;
+      return img.includes(",") ? img.split(",")[1] : img;
+    };
+
+    const mainPart = mainImageData ? {
+      inlineData: {
+        data: processImage(mainImageData),
+        mimeType: "image/jpeg",
+      },
+    } : null;
+
+    const referenceParts = Array.isArray(referenceImageData)
+      ? referenceImageData
+          .map(processImage)
+          .filter(Boolean)
+          .map(data => ({ inlineData: { data, mimeType: "image/jpeg" } }))
       : [];
 
-    const parts = [
-      mainImageData
-        ? {
-            inlineData: {
-              data: mainImageData.includes(',') ? mainImageData.split(',')[1] : mainImageData,
-              mimeType: 'image/jpeg',
-            },
-          }
-        : null,
-      ...referenceParts,
-      { text: prompt },
-    ].filter(Boolean);
+    const parts = [...(mainPart ? [mainPart] : []), ...referenceParts, { text: prompt }];
 
     const response = await aiClient.models.generateContent({
       model: modelId,
       contents: { parts },
-      config: {
-        responseModalities: [Modality.IMAGE],
-      },
+      config: { responseModalities: [Modality.IMAGE] },
     });
 
     const candidate = response.candidates?.[0];
