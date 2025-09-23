@@ -1,43 +1,65 @@
-import { NextApiRequest, NextApiResponse } from "next";
-import { GoogleGenAI } from "@google/genai";
+import { VercelRequest, VercelResponse } from '@vercel/node';
+import { GoogleGenAI, Modality } from '@google/genai';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  try {
-    const { prompt, mainImageData, referenceImageData, modelId } = req.body;
+const client = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-    if (!prompt) {
-      return res.status(400).json({ error: "Prompt is required." });
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+    if (req.method !== 'POST') {
+        res.status(405).json({ error: 'Method not allowed' });
+        return;
     }
 
-    const client = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    try {
+        const { prompt, mainImageData, referenceImageData, modelId } = req.body;
 
-    const parts: any[] = [{ text: prompt }];
+        if (!prompt || !modelId) {
+            res.status(400).json({ error: 'Missing required fields: prompt or modelId' });
+            return;
+        }
 
-    if (mainImageData) {
-      parts.push({ inlineData: { mimeType: "image/jpeg", data: mainImageData.split(",")[1] } });
+        const parts: any[] = [
+            { text: prompt }
+        ];
+
+        if (mainImageData) {
+            parts.unshift({
+                inlineData: {
+                    data: mainImageData.split(',')[1],
+                    mimeType: 'image/jpeg'
+                }
+            });
+        }
+
+        if (referenceImageData) {
+            referenceImageData.forEach((img: string) => {
+                parts.push({
+                    inlineData: {
+                        data: img.split(',')[1],
+                        mimeType: 'image/jpeg'
+                    }
+                });
+            });
+        }
+
+        const response = await client.models.generateContent({
+            model: modelId,
+            contents: { parts },
+            config: { responseModalities: [Modality.IMAGE] },
+        });
+
+        const candidate = response.candidates?.[0];
+        if (!candidate || !candidate.content?.parts) {
+            throw new Error('No image returned from AI model');
+        }
+
+        const imagePart = candidate.content.parts.find((p: any) => p.inlineData?.data);
+        if (!imagePart) {
+            throw new Error('AI model returned content without image');
+        }
+
+        res.status(200).json({ base64Image: imagePart.inlineData.data });
+    } catch (error: any) {
+        console.error('Error generating image:', error);
+        res.status(500).json({ error: error.message || 'Unknown error' });
     }
-
-    if (referenceImageData) {
-      parts.push({ inlineData: { mimeType: "image/jpeg", data: referenceImageData.split(",")[1] } });
-    }
-
-    const response = await client.models.generateContent({
-      model: modelId,
-      contents: { parts },
-      config: { responseModalities: ["IMAGE", "TEXT"] },
-    });
-
-    const candidate = response.candidates?.[0];
-    if (!candidate || !candidate.content?.parts) {
-      throw new Error("No image generated.");
-    }
-
-    const imagePart = candidate.content.parts.find((p: any) => p.inlineData?.data);
-    if (!imagePart) throw new Error("No image in response.");
-
-    res.status(200).json({ base64Image: imagePart.inlineData.data });
-  } catch (error: any) {
-    console.error("Generate Image Error:", error);
-    res.status(500).json({ error: error.message || "Internal Server Error" });
-  }
 }
