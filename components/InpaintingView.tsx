@@ -14,6 +14,8 @@ import { MoveIcon } from './icons/MoveIcon';
 import { ManualSelectIcon } from './icons/ManualSelectIcon';
 import { ViewfinderCircleIcon } from './icons/ViewfinderCircleIcon';
 import { RectangleSelectIcon } from './icons/RectangleSelectIcon';
+import { PolylineSelectIcon } from './icons/PolylineSelectIcon';
+import { FilterIcon } from './icons/FilterIcon';
 
 
 const fileToBase64 = (file: File): Promise<{ data: string; mimeType: string }> => {
@@ -45,7 +47,7 @@ interface InpaintingViewProps {
   onComplete: (newImageUrl: string) => void;
 }
 
-type Tool = 'pan' | 'brush' | 'eraser' | 'lasso' | 'rectangle';
+type Tool = 'pan' | 'brush' | 'eraser' | 'lasso' | 'rectangle' | 'polyline';
 
 const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onComplete }) => {
     const [currentImageSrc, setCurrentImageSrc] = useState(imageUrl);
@@ -56,6 +58,7 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
     const [brushSize, setBrushSize] = useState(40);
     const [history, setHistory] = useState<ImageData[]>([]);
     const [historyIndex, setHistoryIndex] = useState(-1);
+    const [isMaskingMode, setIsMaskingMode] = useState(false);
     
     const [viewTransform, setViewTransform] = useState({ scale: 1, offsetX: 0, offsetY: 0 });
 
@@ -69,19 +72,54 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
     const isInteractingRef = useRef(false);
     const interactionStartPosRef = useRef<{ x: number, y: number } | null>(null);
     const lastPosRef = useRef<{ x: number, y: number } | null>(null);
+    const mousePositionRef = useRef<{ x: number, y: number } | null>(null);
+    const lastEventCoordsRef = useRef<{ clientX: number, clientY: number } | null>(null);
     const strokePointsRef = useRef<{ x: number, y: number }[]>([]);
+
+    useEffect(() => {
+        if (activeTool !== 'polyline') {
+            strokePointsRef.current = [];
+            if (interactionCanvasRef.current) {
+                const ctx = interactionCanvasRef.current.getContext('2d');
+                ctx?.clearRect(0, 0, interactionCanvasRef.current.width, interactionCanvasRef.current.height);
+            }
+        }
+    }, [activeTool]);
+
+    const getEventCoordinates = (e: React.MouseEvent | React.TouchEvent): { clientX: number, clientY: number } | null => {
+        if ('touches' in e) { // TouchEvent
+            if (e.touches.length > 0) {
+                return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+            }
+        } else { // MouseEvent
+            return { clientX: e.clientX, clientY: e.clientY };
+        }
+        return null;
+    };
+
+    const getImagePoint = (clientX: number, clientY: number): { x: number, y: number } | null => {
+        const canvas = interactionCanvasRef.current;
+        if (!canvas) return null;
+        const rect = canvas.getBoundingClientRect();
+        const screenX = clientX - rect.left;
+        const screenY = clientY - rect.top;
+        return {
+            x: (screenX - viewTransform.offsetX) / viewTransform.scale,
+            y: (screenY - viewTransform.offsetY) / viewTransform.scale,
+        };
+    };
 
     const drawCursor = useCallback(() => {
         const interactionCanvas = interactionCanvasRef.current;
         const interactionCtx = interactionCanvas?.getContext('2d');
-        const lastPos = lastPosRef.current;
+        const mousePos = mousePositionRef.current;
         if (!interactionCtx || !interactionCanvas) return;
 
         interactionCtx.clearRect(0, 0, interactionCanvas.width, interactionCanvas.height);
 
-        if (lastPos && (activeTool === 'brush' || activeTool === 'eraser')) {
-            const cursorX = (lastPos.x * viewTransform.scale) + viewTransform.offsetX;
-            const cursorY = (lastPos.y * viewTransform.scale) + viewTransform.offsetY;
+        if (mousePos && (activeTool === 'brush' || activeTool === 'eraser')) {
+            const cursorX = mousePos.x;
+            const cursorY = mousePos.y;
             const radius = (brushSize / 2) * viewTransform.scale;
             
             interactionCtx.save();
@@ -93,7 +131,7 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
             interactionCtx.stroke();
             interactionCtx.restore();
         }
-    }, [activeTool, brushSize, viewTransform]);
+    }, [activeTool, brushSize, viewTransform.scale]);
 
     const redrawMask = useCallback((maskData: ImageData | null) => {
         const image = imageRef.current;
@@ -204,27 +242,35 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
         drawCursor();
     }, [redrawAll, drawCursor]);
 
-    const getCanvasPoint = (e: React.MouseEvent): { x: number, y: number } | null => {
-        const canvas = interactionCanvasRef.current;
-        if (!canvas) return null;
-        const rect = canvas.getBoundingClientRect();
-        return {
-            x: (e.clientX - rect.left - viewTransform.offsetX) / viewTransform.scale,
-            y: (e.clientY - rect.top - viewTransform.offsetY) / viewTransform.scale,
-        };
-    };
-
     const commitToHistory = (newMaskData: ImageData) => {
         const newHistory = history.slice(0, historyIndex + 1);
         setHistory([...newHistory, newMaskData]);
         setHistoryIndex(newHistory.length);
     };
 
-    const startInteraction = (e: React.MouseEvent) => {
+    const handleInteractionStart = (e: React.MouseEvent | React.TouchEvent) => {
+        if ('touches' in e && e.touches.length > 1) return;
+        if (activeTool === 'polyline') {
+            if ('touches' in e) e.preventDefault();
+            isInteractingRef.current = true;
+            const coords = getEventCoordinates(e);
+            if (!coords) return;
+            const pos = getImagePoint(coords.clientX, coords.clientY);
+            if (!pos) return;
+            interactionStartPosRef.current = pos;
+            lastPosRef.current = pos;
+            return;
+        }
+
+        if ('touches' in e && e.touches.length === 1) e.preventDefault();
         isInteractingRef.current = true;
-        const pos = getCanvasPoint(e);
+        const coords = getEventCoordinates(e);
+        if (!coords) return;
+
+        const pos = getImagePoint(coords.clientX, coords.clientY);
         if (!pos) return;
 
+        lastEventCoordsRef.current = coords;
         interactionStartPosRef.current = pos;
         lastPosRef.current = pos;
         strokePointsRef.current = [pos];
@@ -241,23 +287,93 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
         }
     };
     
-    const moveInteraction = (e: React.MouseEvent) => {
-        if (!isInteractingRef.current) return;
-        const pos = getCanvasPoint(e);
-        if (!pos) return;
-    
-        if (activeTool === 'pan') {
-            setViewTransform(prev => ({
-                ...prev,
-                offsetX: prev.offsetX + e.movementX,
-                offsetY: prev.offsetY + e.movementY,
-            }));
+    const handleInteractionMove = (e: React.MouseEvent | React.TouchEvent) => {
+        const coords = getEventCoordinates(e);
+        
+        if (activeTool === 'polyline') {
+            const interactionCtx = interactionCanvasRef.current?.getContext('2d');
+            if (!interactionCtx || !interactionCanvasRef.current || !coords) return;
+
+            const currentImagePos = getImagePoint(coords.clientX, coords.clientY);
+            if (!currentImagePos) return;
+
+            const rect = interactionCanvasRef.current.getBoundingClientRect();
+            mousePositionRef.current = { x: coords.clientX - rect.left, y: coords.clientY - rect.top };
+
+            interactionCtx.clearRect(0, 0, interactionCanvasRef.current.width, interactionCanvasRef.current.height);
+            interactionCtx.save();
+            interactionCtx.translate(viewTransform.offsetX, viewTransform.offsetY);
+            interactionCtx.scale(viewTransform.scale, viewTransform.scale);
+            
+            interactionCtx.strokeStyle = 'rgba(124, 58, 237, 0.9)';
+            interactionCtx.lineWidth = 2 / viewTransform.scale;
+            interactionCtx.fillStyle = 'rgba(124, 58, 237, 0.5)';
+
+            if (strokePointsRef.current.length > 0) {
+                interactionCtx.beginPath();
+                interactionCtx.moveTo(strokePointsRef.current[0].x, strokePointsRef.current[0].y);
+                for (let i = 1; i < strokePointsRef.current.length; i++) {
+                    interactionCtx.lineTo(strokePointsRef.current[i].x, strokePointsRef.current[i].y);
+                }
+                interactionCtx.stroke();
+
+                const lastPoint = strokePointsRef.current[strokePointsRef.current.length - 1];
+                interactionCtx.beginPath();
+                interactionCtx.moveTo(lastPoint.x, lastPoint.y);
+                interactionCtx.lineTo(currentImagePos.x, currentImagePos.y);
+                interactionCtx.stroke();
+                
+                const firstPoint = strokePointsRef.current[0];
+                const dist = Math.hypot(currentImagePos.x - firstPoint.x, currentImagePos.y - firstPoint.y);
+                if (dist < 10 / viewTransform.scale) {
+                    interactionCtx.beginPath();
+                    interactionCtx.arc(firstPoint.x, firstPoint.y, 5 / viewTransform.scale, 0, 2 * Math.PI);
+                    interactionCtx.fillStyle = 'rgba(124, 58, 237, 0.8)';
+                    interactionCtx.fill();
+                }
+            }
+            interactionCtx.restore();
             return;
         }
-    
-        strokePointsRef.current.push(pos);
-    
-        if ((activeTool === 'brush' || activeTool === 'eraser') && lastPosRef.current) {
+
+        if ('touches' in e && e.touches.length === 1) e.preventDefault();
+        
+        const canvas = interactionCanvasRef.current;
+        
+        if (coords && canvas) {
+            const rect = canvas.getBoundingClientRect();
+            mousePositionRef.current = { x: coords.clientX - rect.left, y: coords.clientY - rect.top };
+        } else {
+            mousePositionRef.current = null;
+        }
+
+        if (!isInteractingRef.current) {
+            drawCursor();
+            return;
+        }
+
+        if (!coords) return;
+        const currentImagePos = getImagePoint(coords.clientX, coords.clientY);
+        if (!currentImagePos) return;
+
+        if (activeTool === 'pan') {
+            if (!lastEventCoordsRef.current) return;
+            const deltaX = coords.clientX - lastEventCoordsRef.current.clientX;
+            const deltaY = coords.clientY - lastEventCoordsRef.current.clientY;
+            setViewTransform(prev => ({
+                ...prev,
+                offsetX: prev.offsetX + deltaX,
+                offsetY: prev.offsetY + deltaY,
+            }));
+            lastEventCoordsRef.current = coords;
+            return;
+        }
+
+        const lastPoint = lastPosRef.current;
+        lastPosRef.current = currentImagePos;
+        strokePointsRef.current.push(currentImagePos);
+
+        if ((activeTool === 'brush' || activeTool === 'eraser') && lastPoint) {
             const image = imageRef.current;
             if (!image || !workingMaskDataRef.current) return;
     
@@ -277,16 +393,13 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
             tempCtx.lineJoin = 'round';
     
             tempCtx.beginPath();
-            tempCtx.moveTo(lastPosRef.current.x, lastPosRef.current.y);
-            tempCtx.lineTo(pos.x, pos.y);
+            tempCtx.moveTo(lastPoint.x, lastPoint.y);
+            tempCtx.lineTo(currentImagePos.x, currentImagePos.y);
             tempCtx.stroke();
             
             workingMaskDataRef.current = tempCtx.getImageData(0, 0, image.naturalWidth, image.naturalHeight);
-    
             redrawMask(workingMaskDataRef.current);
-            
-            lastPosRef.current = pos;
-            drawCursor(); // Continuously draw the cursor to follow the mouse while drawing.
+            drawCursor(); // Also draw cursor on top while brushing
             return;
         }
     
@@ -307,7 +420,7 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
     
         if (activeTool === 'rectangle') {
             interactionCtx.beginPath();
-            interactionCtx.rect(startPos.x, startPos.y, pos.x - startPos.x, pos.y - startPos.y);
+            interactionCtx.rect(startPos.x, startPos.y, currentImagePos.x - startPos.x, currentImagePos.y - startPos.y);
             interactionCtx.fill();
             interactionCtx.stroke();
         } else if (activeTool === 'lasso') {
@@ -318,21 +431,80 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
         }
         interactionCtx.restore();
     };
-
-    const handleContainerMouseMove = (e: React.MouseEvent) => {
-        const pos = getCanvasPoint(e);
-        lastPosRef.current = pos;
-
-        if (isInteractingRef.current) {
-            moveInteraction(e);
-        } else {
-            drawCursor();
-        }
-    };
     
-    const endInteraction = async () => {
+    const handleInteractionEnd = async () => {
+        if (activeTool === 'polyline') {
+            if (!isInteractingRef.current) return;
+            isInteractingRef.current = false;
+            
+            const startPos = interactionStartPosRef.current;
+            if (!startPos) return;
+
+            const endPos = lastPosRef.current;
+            if (endPos && Math.hypot(endPos.x - startPos.x, endPos.y - startPos.y) > 5 / viewTransform.scale) {
+                return;
+            }
+            
+            const points = strokePointsRef.current;
+            if (points.length > 2) {
+                const firstPoint = points[0];
+                const dist = Math.hypot(startPos.x - firstPoint.x, startPos.y - firstPoint.y);
+                if (dist < 10 / viewTransform.scale) {
+                    const image = imageRef.current;
+                    if (!image) return;
+
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = image.naturalWidth;
+                    tempCanvas.height = image.naturalHeight;
+                    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+                    if (!tempCtx) return;
+
+                    if (history[historyIndex]) {
+                        tempCtx.putImageData(history[historyIndex], 0, 0);
+                    }
+                    
+                    tempCtx.fillStyle = 'rgba(255,255,255,1)';
+                    
+                    tempCtx.beginPath();
+                    tempCtx.moveTo(points[0].x, points[0].y);
+                    points.forEach(p => tempCtx.lineTo(p.x, p.y));
+                    tempCtx.closePath();
+                    tempCtx.fill();
+
+                    commitToHistory(tempCtx.getImageData(0, 0, image.naturalWidth, image.naturalHeight));
+                    
+                    strokePointsRef.current = [];
+                    const interactionCtx = interactionCanvasRef.current?.getContext('2d');
+                    interactionCtx?.clearRect(0, 0, interactionCtx.canvas.width, interactionCtx.canvas.height);
+                    return;
+                }
+            }
+
+            points.push(startPos);
+            
+            const interactionCtx = interactionCanvasRef.current?.getContext('2d');
+            if (!interactionCtx || !interactionCanvasRef.current) return;
+
+            interactionCtx.clearRect(0, 0, interactionCanvasRef.current.width, interactionCanvasRef.current.height);
+            interactionCtx.save();
+            interactionCtx.translate(viewTransform.offsetX, viewTransform.offsetY);
+            interactionCtx.scale(viewTransform.scale, viewTransform.scale);
+            
+            interactionCtx.strokeStyle = 'rgba(124, 58, 237, 0.9)';
+            interactionCtx.lineWidth = 2 / viewTransform.scale;
+
+            interactionCtx.beginPath();
+            interactionCtx.moveTo(points[0].x, points[0].y);
+            points.forEach(p => interactionCtx.lineTo(p.x, p.y));
+            interactionCtx.stroke();
+            
+            interactionCtx.restore();
+            return;
+        }
+
         if (!isInteractingRef.current) return;
         isInteractingRef.current = false;
+        lastEventCoordsRef.current = null;
     
         if (activeTool === 'pan') {
             drawCursor();
@@ -340,7 +512,6 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
         }
     
         if (activeTool === 'brush' || activeTool === 'eraser') {
-            // Handle single click (dab) case, as moveInteraction doesn't fire
             if (strokePointsRef.current.length === 1 && workingMaskDataRef.current) {
                 const image = imageRef.current;
                 const startPos = interactionStartPosRef.current;
@@ -358,7 +529,6 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
                         tempCtx.arc(startPos.x, startPos.y, brushSize / 2, 0, Math.PI * 2);
                         tempCtx.fill();
                         workingMaskDataRef.current = tempCtx.getImageData(0, 0, image.naturalWidth, image.naturalHeight);
-                        // Redraw one last time for the dab
                         redrawMask(workingMaskDataRef.current);
                     }
                 }
@@ -367,14 +537,13 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
             if (workingMaskDataRef.current) {
                 commitToHistory(workingMaskDataRef.current);
             }
-            workingMaskDataRef.current = null; // Clear working copy
+            workingMaskDataRef.current = null;
             strokePointsRef.current = [];
             interactionStartPosRef.current = null;
             drawCursor();
             return;
         }
     
-        // Original logic for rectangle and lasso
         const image = imageRef.current;
         const interactionCanvas = interactionCanvasRef.current;
         const interactionCtx = interactionCanvas?.getContext('2d');
@@ -382,7 +551,7 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
         const lastPos = lastPosRef.current;
         
         if (!image || !interactionCanvas || !interactionCtx || !startPos || !lastPos) return;
-        interactionCtx.clearRect(0, 0, interactionCanvas.width, interactionCanvas.height);
+        interactionCtx.clearRect(0, 0, interactionCanvas.width, interactionCtx.canvas.height);
         
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = image.naturalWidth;
@@ -416,6 +585,16 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
         interactionStartPosRef.current = null;
         strokePointsRef.current = [];
         drawCursor();
+    };
+
+    const handleMouseLeave = () => {
+        mousePositionRef.current = null;
+        drawCursor();
+        
+        if (isInteractingRef.current) {
+            handleInteractionEnd();
+        }
+        lastPosRef.current = null;
     };
     
     const handleUndo = () => historyIndex > 0 && setHistoryIndex(historyIndex - 1);
@@ -464,11 +643,21 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
             const maskFile = new File([maskBlob], 'mask.png', { type: 'image/png' });
             const maskBase64 = await fileToBase64(maskFile);
             
-            let fullPrompt = prompt.trim();
-            if (!fullPrompt) {
-                fullPrompt = "Fill in the selected area seamlessly and photorealistically, matching the surrounding context.";
+            let userPrompt = prompt.trim();
+            if (!userPrompt) {
+                userPrompt = "Remove the selected object or fill the selected area seamlessly and photorealistically, matching the surrounding context, lighting, and textures.";
             }
-            fullPrompt += ". The output must ONLY be the final photorealistic image.";
+            
+            let fullPrompt = '';
+            if (isMaskingMode) {
+                fullPrompt = `**CRITICAL INPAINTING INSTRUCTION:** You are performing a precise, masked edit. The second image is a black and white mask. You MUST apply the following edit *only* to the white areas shown in the mask: "${userPrompt}".
+- The black areas of the mask MUST remain completely untouched. The original image content outside the mask must be perfectly preserved.
+- When applying the edit, preserve the original details, textures, and shadows inside the mask as much as possible, unless the prompt asks to replace them. For example, when changing a color, keep the original texture.
+Your output must ONLY be the final photorealistic image.`;
+            } else {
+                fullPrompt = `The second image is a mask indicating the area to edit. Apply this edit ONLY to the masked (white) area of the first image: "${userPrompt}". Unmasked areas must remain completely unchanged. The output must be ONLY the final photorealistic image.`;
+            }
+
 
             const response = await generateDesign(fullPrompt, originalImageBase64, [{ data: maskBase64.data, mimeType: maskBase64.mimeType }], DEFAULT_AI_MODEL);
             setCurrentImageSrc(`data:image/png;base64,${response}`);
@@ -499,8 +688,8 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
 
     const handleZoom = (direction: 'in' | 'out') => {
         const scaleAmount = 0.2;
-        const newScale = direction === 'in'
-            ? viewTransform.scale * (1 + scaleAmount)
+        const newScale = direction === 'in' 
+            ? viewTransform.scale * (1 + scaleAmount) 
             : viewTransform.scale / (1 + scaleAmount);
         const clampedScale = Math.max(0.1, Math.min(newScale, 10));
 
@@ -524,6 +713,7 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
                 return 'cursor-none';
             case 'lasso':
             case 'rectangle':
+            case 'polyline':
                 return 'cursor-crosshair';
             default:
                 return 'cursor-default';
@@ -580,10 +770,14 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
             <main 
                 ref={containerRef} 
                 className="flex-grow relative overflow-hidden bg-black/20"
-                onMouseDown={startInteraction}
-                onMouseMove={handleContainerMouseMove}
-                onMouseUp={endInteraction}
-                onMouseLeave={endInteraction}
+                onMouseDown={handleInteractionStart}
+                onTouchStart={handleInteractionStart}
+                onMouseMove={handleInteractionMove}
+                onTouchMove={handleInteractionMove}
+                onMouseUp={handleInteractionEnd}
+                onTouchEnd={handleInteractionEnd}
+                onMouseLeave={handleMouseLeave}
+                onTouchCancel={handleInteractionEnd}
                 onWheel={handleWheel}
             >
                 <canvas ref={imageCanvasRef} className="absolute inset-0 pointer-events-none" />
@@ -596,6 +790,13 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
                 <div className="p-3 space-y-3">
                     {error && <p className="text-red-400 text-sm text-center animate-fade-in">{error}</p>}
                     <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setIsMaskingMode(!isMaskingMode)}
+                            className="p-3 rounded-lg bg-dark-primary border-2 border-dark-border hover:border-accent transition-colors flex-shrink-0"
+                            title={isMaskingMode ? "Disable Strict Masking" : "Enable Strict Masking"}
+                        >
+                            <FilterIcon className={`w-6 h-6 transition-colors ${isMaskingMode ? 'text-green-400' : 'text-dark-text-secondary'}`} />
+                        </button>
                         <input 
                             type="text"
                             value={prompt}
@@ -603,17 +804,18 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
                             className="flex-grow bg-dark-primary border-2 border-dark-border rounded-lg p-3 text-dark-text placeholder:text-dark-text-secondary focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
                             placeholder="Describe edit, or leave blank to remove..."
                             disabled={isLoading}
+                            dir="auto"
                         />
-                         <button
+                        <button
                             onClick={handleGenerate}
                             disabled={isLoading || isMaskEmpty(history[historyIndex])}
                             className="bg-accent hover:bg-accent-hover disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center transition-colors"
                         >
                             {isLoading 
-                                ? <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                : <WandSparklesIcon className="w-5 h-5" />
+                                ? <svg className="animate-spin h-5 w-5 text-white mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                : <WandSparklesIcon className="w-5 h-5 mr-2" />
                             }
-                            <span className="ml-2">Generate</span>
+                            <span>Generate</span>
                         </button>
                     </div>
                      {/* Contextual Tool Options */}
@@ -641,6 +843,7 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
                     <ToolButton tool="eraser" label="Eraser"><EraserIcon className="w-6 h-6" /></ToolButton>
                     <ToolButton tool="lasso" label="Lasso"><LassoIcon className="w-6 h-6" /></ToolButton>
                     <ToolButton tool="rectangle" label="Rectangle"><RectangleSelectIcon className="w-6 h-6" /></ToolButton>
+                    <ToolButton tool="polyline" label="Polyline"><PolylineSelectIcon className="w-6 h-6" /></ToolButton>
                 </div>
             </footer>
         </div>
