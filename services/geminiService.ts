@@ -1,8 +1,13 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 import { fetchEventSource } from '@fortaine/fetch-event-source';
 
-let isApiBusy = false;
+// Global lock to prevent concurrent API calls.
+let isApiBusy = false; 
 
+/**
+ * A wrapper function to ensure only one API call is in flight at a time.
+ * This prevents hitting rate limits and provides a more user-friendly error.
+ */
 async function withApiLock(apiCall) {
     if (isApiBusy) {
         throw new Error("The AI is currently busy. Please wait for the current operation to complete before trying again.");
@@ -12,6 +17,7 @@ async function withApiLock(apiCall) {
         const result = await apiCall();
         return result;
     } finally {
+        // Add a brief cool-down period to respect API rate limits.
         setTimeout(() => {
             isApiBusy = false;
         }, 300);
@@ -21,14 +27,14 @@ async function withApiLock(apiCall) {
 export const generateDesign = async (prompt, mainImageData, referenceImageData, modelId) => {
     return withApiLock(async () => {
         try {
-            const response = await fetch('https://ai-proxy-server-nu.vercel.app/generate-image', {
+            const response = await fetch('https://ai-archviz.vercel.app/generate-image', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    prompt: prompt,
-                    mainImageData: mainImageData,
-                    referenceImageData: referenceImageData,
-                    modelId: modelId
+                    prompt,
+                    mainImageData,
+                    referenceImageData,
+                    modelId
                 })
             });
 
@@ -53,7 +59,7 @@ export const generateDesign = async (prompt, mainImageData, referenceImageData, 
 export const enhancePrompt = async (userPrompt, mode, context, image) => {
     return withApiLock(async () => {
         try {
-            const response = await fetch('https://ai-proxy-server-nu.vercel.app/enhance-prompt', {
+            const response = await fetch('https://ai-archviz.vercel.app/enhance-prompt', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
