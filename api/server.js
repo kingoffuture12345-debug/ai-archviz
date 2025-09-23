@@ -1,12 +1,13 @@
-const express = require('express');
-const { GoogleGenerativeAI } = require('@google/genai');
-const cors = require('cors');
-require('dotenv').config();
+import express from 'express';
+import { GoogleGenerativeAI } from '@google/genai';
+import cors from 'cors';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const app = express();
 
 app.use(cors());
-
 app.use(express.json({ limit: '50mb' }));
 
 const genAI = new GoogleGenerativeAI(process.env.API_KEY);
@@ -17,15 +18,13 @@ const generateImageHandler = async (req, res) => {
 
     const model = genAI.getGenerativeModel({ model: modelId });
 
-    const parts = [
-      { text: prompt },
-    ];
+    const parts = [{ text: prompt }];
 
     if (mainImageData) {
       parts.push({
         inlineData: {
           mimeType: 'image/jpeg',
-          data: mainImageData.split(',')[1],
+          data: mainImageData.replace(/^data:image\/\w+;base64,/, ''),
         },
       });
     }
@@ -34,12 +33,16 @@ const generateImageHandler = async (req, res) => {
       parts.push({
         inlineData: {
           mimeType: 'image/jpeg',
-          data: referenceImageData.split(',')[1],
+          data: referenceImageData.replace(/^data:image\/\w+;base64,/, ''),
         },
       });
     }
 
     const result = await model.generateContent({ contents: [{ role: 'user', parts }] });
+
+    if (!result.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data) {
+      throw new Error("The AI did not return an image.");
+    }
 
     res.json({
       base64Image: result.candidates[0].content.parts[0].inlineData.data,
@@ -60,23 +63,23 @@ const enhancePromptHandler = async (req, res) => {
       { text: `User Prompt: ${userPrompt}` },
     ];
 
-    if (mode) {
-      parts.push({ text: `Style: ${mode}` });
-    }
-    if (context) {
-      parts.push({ text: `Context: ${context}` });
-    }
+    if (mode) parts.push({ text: `Style: ${mode}` });
+    if (context) parts.push({ text: `Context: ${context}` });
     if (image) {
       parts.push({
         inlineData: {
           mimeType: 'image/jpeg',
-          data: image.split(',')[1],
+          data: image.replace(/^data:image\/\w+;base64,/, ''),
         },
       });
     }
 
     const result = await model.generateContent({ contents: [{ role: "user", parts }] });
-    const enhancedText = result.candidates[0].content.parts[0].text;
+
+    const enhancedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!enhancedText) {
+      throw new Error("The AI did not return enhanced text.");
+    }
 
     res.json({ enhancedText });
   } catch (error) {
@@ -88,4 +91,4 @@ const enhancePromptHandler = async (req, res) => {
 app.post('/api/generate-image', generateImageHandler);
 app.post('/api/enhance-prompt', enhancePromptHandler);
 
-module.exports = app;
+export default app;
