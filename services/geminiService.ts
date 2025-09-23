@@ -1,29 +1,57 @@
-import { GoogleGenerativeAI } from "@google/genai";
-
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
+// services/geminiService.ts
+export const generateDesign = async (
+  prompt: string,
+  mainImageData?: string,
+  referenceImageData?: string[],
+  modelId: string = "gemini-2.5-flash-image-preview"
+): Promise<string> => {
   try {
-    const { prompt, mainImageData, referenceImageData, modelId } = req.body;
+    const response = await fetch("/api/generate-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt,
+        mainImageData,
+        referenceImageData,
+        modelId,
+      }),
+    });
 
-    const genAI = new GoogleGenerativeAI(process.env.API_KEY);
-    const model = genAI.getGenerativeModel({ model: modelId });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Unknown error");
+    }
 
-    const parts = [
-      { text: prompt },
-      ...(mainImageData ? [{ inlineData: { data: mainImageData.split(',')[1], mimeType: 'image/jpeg' } }] : []),
-      ...(referenceImageData ? [{ inlineData: { data: referenceImageData.split(',')[1], mimeType: 'image/jpeg' } }] : []),
-    ];
-
-    const result = await model.generateContent({ contents: [{ role: "user", parts }] });
-
-    const base64Image = result.candidates[0].content.parts[0].inlineData.data;
-    return res.status(200).json({ base64Image });
-
-  } catch (error) {
-    console.error("Error generating image:", error);
-    return res.status(500).json({ error: error.message });
+    const data = await response.json();
+    return data.base64Image;
+  } catch (error: any) {
+    console.error("Error calling generate-image API:", error);
+    throw new Error(`Failed to generate design. ${error.message}`);
   }
-}
+};
+
+export const enhancePrompt = async (
+  userPrompt: string,
+  mode?: string,
+  context?: any,
+  image?: string
+): Promise<string> => {
+  try {
+    const response = await fetch("/api/enhance-prompt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userPrompt, mode, context, image }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Unknown error");
+    }
+
+    const data = await response.json();
+    return data.enhancedText;
+  } catch (error: any) {
+    console.error("Error calling enhance-prompt API:", error);
+    throw new Error(`Failed to enhance prompt. ${error.message}`);
+  }
+};
