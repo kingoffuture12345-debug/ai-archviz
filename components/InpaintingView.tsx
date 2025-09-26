@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { ArrowLeftIcon } from './icons/ArrowLeftIcon';
 import { EraserIcon } from './icons/EraserIcon';
 import { UndoIcon } from './icons/UndoIcon';
@@ -48,6 +48,7 @@ interface InpaintingViewProps {
 }
 
 type Tool = 'pan' | 'brush' | 'eraser' | 'lasso' | 'rectangle' | 'polyline';
+type MaskingMode = 'normal' | 'strict' | 'smart';
 
 const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onComplete }) => {
     const [currentImageSrc, setCurrentImageSrc] = useState(imageUrl);
@@ -58,7 +59,7 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
     const [brushSize, setBrushSize] = useState(40);
     const [history, setHistory] = useState<ImageData[]>([]);
     const [historyIndex, setHistoryIndex] = useState(-1);
-    const [isMaskingMode, setIsMaskingMode] = useState(false);
+    const [maskingMode, setMaskingMode] = useState<MaskingMode>('normal');
     
     const [viewTransform, setViewTransform] = useState({ scale: 1, offsetX: 0, offsetY: 0 });
 
@@ -75,6 +76,35 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
     const mousePositionRef = useRef<{ x: number, y: number } | null>(null);
     const lastEventCoordsRef = useRef<{ clientX: number, clientY: number } | null>(null);
     const strokePointsRef = useRef<{ x: number, y: number }[]>([]);
+
+    const handleToggleMaskingMode = () => {
+        setMaskingMode(currentMode => {
+            if (currentMode === 'normal') return 'strict';
+            if (currentMode === 'strict') return 'smart';
+            return 'normal'; // 'smart' loops back to 'normal'
+        });
+    };
+    
+    const { maskingModeClassName, maskingModeTitle } = useMemo(() => {
+        switch (maskingMode) {
+            case 'strict':
+                return {
+                    maskingModeClassName: 'text-blue-400',
+                    maskingModeTitle: 'ماسك دقيق: يتم تطبيق التعديلات داخل الماسك فقط.',
+                };
+            case 'smart':
+                return {
+                    maskingModeClassName: 'text-purple-400 shadow-[0_0_8px_theme(colors.purple.500)]',
+                    maskingModeTitle: 'ماسك ذكي: يفسر الذكاء الاصطناعي منطقة الماسك بذكاء.',
+                };
+            case 'normal':
+            default:
+                return {
+                    maskingModeClassName: 'text-dark-text-secondary',
+                    maskingModeTitle: 'الوضع العادي: تندمج التعديلات بشكل طبيعي مع المحيط.',
+                };
+        }
+    }, [maskingMode]);
 
     useEffect(() => {
         if (activeTool !== 'polyline') {
@@ -649,17 +679,44 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
             }
             
             let fullPrompt = '';
-            if (isMaskingMode) {
-                fullPrompt = `**CRITICAL INPAINTING INSTRUCTION:** You are performing a precise, masked edit. The second image is a black and white mask. You MUST apply the following edit *only* to the white areas shown in the mask: "${userPrompt}".
-- The black areas of the mask MUST remain completely untouched. The original image content outside the mask must be perfectly preserved.
-- When applying the edit, preserve the original details, textures, and shadows inside the mask as much as possible, unless the prompt asks to replace them. For example, when changing a color, keep the original texture.
-Your output must ONLY be the final photorealistic image.`;
-            } else {
-                fullPrompt = `The second image is a mask indicating the area to edit. Apply this edit ONLY to the masked (white) area of the first image: "${userPrompt}". Unmasked areas must remain completely unchanged. The output must be ONLY the final photorealistic image.`;
+            switch (maskingMode) {
+                case 'strict':
+                    fullPrompt = `**HYPER-STRICT INPAINTING PROTOCOL:**
+**MANDATORY SPATIAL BINDING:** The user's request, \`"${userPrompt}"\`, is spatially bound to the object(s) under the mask. You are required to identify the object indicated by the mask and apply the edit **exclusively** to it.
+
+**CORE DIRECTIVES (NON-NEGOTIABLE):**
+1.  **ZERO DEVIATION:** Your output MUST be an identical, pixel-for-pixel copy of the original image for ALL pixels outside the provided mask. There is ZERO tolerance for any alteration, color shift, or blurring outside the masked zone.
+2.  **PRECISION BLENDING:** Analyze the boundary of the masked area. The new content you generate inside the mask must seamlessly and flawlessly blend with the surrounding, unaltered pixels. Match lighting, texture, and color perfectly to create an invisible seam.
+3.  **EXECUTE REQUEST:** Execute the user's request ONLY within the white masked zone on the object identified by the spatial binding rule.
+4.  **OUTPUT FORMAT:** Your output MUST be the final, full-frame, edited image with the exact same dimensions as the original. Do not output text or explanations.`;
+                    break;
+                case 'smart':
+                    fullPrompt = `**SMART MASKING PROTOCOL:**
+**MANDATORY SPATIAL BINDING:** The user's request, \`"${userPrompt}"\`, is spatially bound to the object(s) indicated by the mask. You MUST apply the edit to the object(s) under or immediately associated with the mask. You are STRICTLY forbidden from editing similar objects located elsewhere in the image.
+
+**INSTRUCTIONS:**
+1.  Analyze the image context within and around the provided mask.
+2.  Apply the user's edit to the spatially bound object.
+3.  You have creative freedom to intelligently adjust the boundaries of the edit based on the scene's objects and lighting to create the most seamless and photorealistic result. For example, if the mask partially covers an object, you should edit the entire object.
+4.  Preserve unrelated areas far from the mask.
+5.  Your output must ONLY be the final photorealistic image.`;
+                    break;
+                case 'normal':
+                default:
+                    fullPrompt = `**NORMAL MASKING PROTOCOL:**
+**CRITICAL DIRECTIVE - SPATIAL BINDING:** The following user request, \`"${userPrompt}"\`, describes a change that must be applied ONLY to the object or area highlighted by the provided mask. Do not edit other parts of the image.
+
+**INSTRUCTIONS:**
+1.  Identify the object or area under the mask.
+2.  Apply the user's edit.
+3.  The edit should primarily affect the masked area but can blend naturally into the immediate surroundings for a more realistic result.
+4.  Your output must ONLY be the final photorealistic image.`;
+                    break;
             }
 
 
             const response = await generateDesign(fullPrompt, originalImageBase64, [{ data: maskBase64.data, mimeType: maskBase64.mimeType }], DEFAULT_AI_MODEL);
+            
             setCurrentImageSrc(`data:image/png;base64,${response}`);
             setPrompt('');
 
@@ -791,11 +848,11 @@ Your output must ONLY be the final photorealistic image.`;
                     {error && <p className="text-red-400 text-sm text-center animate-fade-in">{error}</p>}
                     <div className="flex items-center gap-2">
                         <button
-                            onClick={() => setIsMaskingMode(!isMaskingMode)}
+                            onClick={handleToggleMaskingMode}
                             className="p-3 rounded-lg bg-dark-primary border-2 border-dark-border hover:border-accent transition-colors flex-shrink-0"
-                            title={isMaskingMode ? "Disable Strict Masking" : "Enable Strict Masking"}
+                            title={maskingModeTitle}
                         >
-                            <FilterIcon className={`w-6 h-6 transition-colors ${isMaskingMode ? 'text-green-400' : 'text-dark-text-secondary'}`} />
+                            <FilterIcon className={`w-6 h-6 transition-all duration-300 ${maskingModeClassName}`} />
                         </button>
                         <input 
                             type="text"
