@@ -16,6 +16,9 @@ import { ViewfinderCircleIcon } from './icons/ViewfinderCircleIcon';
 import { RectangleSelectIcon } from './icons/RectangleSelectIcon';
 import { PolylineSelectIcon } from './icons/PolylineSelectIcon';
 import { FilterIcon } from './icons/FilterIcon';
+import { PainterBrushIcon } from './icons/PainterBrushIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { BackwardStepIcon } from './icons/BackwardStepIcon';
 
 
 const fileToBase64 = (file: File): Promise<{ data: string; mimeType: string }> => {
@@ -47,7 +50,7 @@ interface InpaintingViewProps {
   onComplete: (newImageUrl: string) => void;
 }
 
-type Tool = 'pan' | 'brush' | 'eraser' | 'lasso' | 'rectangle' | 'polyline';
+type Tool = 'pan' | 'brush' | 'eraser' | 'lasso' | 'rectangle' | 'polyline' | 'pin';
 type MaskingMode = 'normal' | 'strict' | 'smart';
 
 const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onComplete }) => {
@@ -57,8 +60,13 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
     const [isLoading, setIsLoading] = useState(false);
     const [activeTool, setActiveTool] = useState<Tool>('brush');
     const [brushSize, setBrushSize] = useState(40);
-    const [history, setHistory] = useState<ImageData[]>([]);
-    const [historyIndex, setHistoryIndex] = useState(-1);
+    
+    const [maskHistory, setMaskHistory] = useState<ImageData[]>([]);
+    const [maskHistoryIndex, setMaskHistoryIndex] = useState(-1);
+    
+    const [imageHistory, setImageHistory] = useState<string[]>([]);
+    const [imageHistoryIndex, setImageHistoryIndex] = useState(0);
+
     const [maskingMode, setMaskingMode] = useState<MaskingMode>('normal');
     
     const [viewTransform, setViewTransform] = useState({ scale: 1, offsetX: 0, offsetY: 0 });
@@ -210,11 +218,10 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
         imageCtx.drawImage(image, 0, 0, image.naturalWidth, image.naturalHeight);
         imageCtx.restore();
 
-        redrawMask(history[historyIndex] || null);
+        redrawMask(maskHistory[maskHistoryIndex] || null);
 
-    }, [viewTransform, history, historyIndex, redrawMask]);
+    }, [viewTransform, maskHistory, maskHistoryIndex, redrawMask]);
     
-    // Fit image to view
     const fitToScreen = useCallback(() => {
         const image = imageRef.current;
         const container = containerRef.current;
@@ -229,15 +236,35 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
         setViewTransform({ scale, offsetX, offsetY });
     }, []);
 
-    // Load image and initialize canvases
+    useEffect(() => {
+        setImageHistory([imageUrl]);
+        setImageHistoryIndex(0);
+
+        const handleResize = () => {
+            if (containerRef.current) {
+                [imageCanvasRef, maskCanvasRef, interactionCanvasRef].forEach(ref => {
+                    if (ref.current) {
+                        ref.current.width = containerRef.current.clientWidth;
+                        ref.current.height = containerRef.current.clientHeight;
+                    }
+                });
+                fitToScreen();
+            }
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, [imageUrl, fitToScreen]);
+
     useEffect(() => {
         const image = new Image();
         image.crossOrigin = "anonymous";
         image.src = currentImageSrc;
         imageRef.current = image;
+
         image.onload = () => {
             const container = containerRef.current;
-            if (!container) return;
+            if (!container || !imageRef.current) return;
             
             [imageCanvasRef, maskCanvasRef, interactionCanvasRef].forEach(ref => {
                 if (ref.current) {
@@ -246,36 +273,26 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
                 }
             });
 
-            const initialMask = new ImageData(image.naturalWidth, image.naturalHeight);
-            setHistory([initialMask]);
-            setHistoryIndex(0);
+            const initialMask = new ImageData(imageRef.current.naturalWidth, imageRef.current.naturalHeight);
+            setMaskHistory([initialMask]);
+            setMaskHistoryIndex(0);
             fitToScreen();
         };
 
-        const handleResize = () => {
-             [imageCanvasRef, maskCanvasRef, interactionCanvasRef].forEach(ref => {
-                if (ref.current && containerRef.current) {
-                    ref.current.width = containerRef.current.clientWidth;
-                    ref.current.height = containerRef.current.clientHeight;
-                }
-            });
-            fitToScreen();
+        if (image.complete) {
+            image.onload(new Event('load'));
         }
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-
     }, [currentImageSrc, fitToScreen]);
 
-    // Redraw when state changes
     useEffect(() => {
         redrawAll();
         drawCursor();
     }, [redrawAll, drawCursor]);
 
     const commitToHistory = (newMaskData: ImageData) => {
-        const newHistory = history.slice(0, historyIndex + 1);
-        setHistory([...newHistory, newMaskData]);
-        setHistoryIndex(newHistory.length);
+        const newHistory = maskHistory.slice(0, maskHistoryIndex + 1);
+        setMaskHistory([...newHistory, newMaskData]);
+        setMaskHistoryIndex(newHistory.length);
     };
 
     const handleInteractionStart = (e: React.MouseEvent | React.TouchEvent) => {
@@ -306,7 +323,7 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
         strokePointsRef.current = [pos];
 
         if (activeTool === 'brush' || activeTool === 'eraser') {
-            const currentMask = history[historyIndex];
+            const currentMask = maskHistory[maskHistoryIndex];
             if (currentMask) {
                 workingMaskDataRef.current = new ImageData(
                     new Uint8ClampedArray(currentMask.data),
@@ -446,14 +463,22 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
         
         interactionCtx.fillStyle = 'rgba(124, 58, 237, 0.5)';
         interactionCtx.strokeStyle = 'rgba(124, 58, 237, 0.9)';
-        interactionCtx.lineWidth = 2 / viewTransform.scale;
-    
-        if (activeTool === 'rectangle') {
+
+        if (activeTool === 'pin') {
+            interactionCtx.lineWidth = brushSize;
+            interactionCtx.lineCap = 'round';
+            interactionCtx.beginPath();
+            interactionCtx.moveTo(startPos.x, startPos.y);
+            interactionCtx.lineTo(currentImagePos.x, currentImagePos.y);
+            interactionCtx.stroke();
+        } else if (activeTool === 'rectangle') {
+            interactionCtx.lineWidth = 2 / viewTransform.scale;
             interactionCtx.beginPath();
             interactionCtx.rect(startPos.x, startPos.y, currentImagePos.x - startPos.x, currentImagePos.y - startPos.y);
             interactionCtx.fill();
             interactionCtx.stroke();
         } else if (activeTool === 'lasso') {
+            interactionCtx.lineWidth = 2 / viewTransform.scale;
             interactionCtx.beginPath();
             interactionCtx.moveTo(strokePointsRef.current[0].x, strokePointsRef.current[0].y);
             strokePointsRef.current.forEach(p => interactionCtx.lineTo(p.x, p.y));
@@ -489,8 +514,8 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
                     const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
                     if (!tempCtx) return;
 
-                    if (history[historyIndex]) {
-                        tempCtx.putImageData(history[historyIndex], 0, 0);
+                    if (maskHistory[maskHistoryIndex]) {
+                        tempCtx.putImageData(maskHistory[maskHistoryIndex], 0, 0);
                     }
                     
                     tempCtx.fillStyle = 'rgba(255,255,255,1)';
@@ -589,8 +614,8 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
         const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
         if (!tempCtx) return;
     
-        if (history[historyIndex]) {
-            tempCtx.putImageData(history[historyIndex], 0, 0);
+        if (maskHistory[maskHistoryIndex]) {
+            tempCtx.putImageData(maskHistory[maskHistoryIndex], 0, 0);
         }
         
         tempCtx.fillStyle = 'rgba(255,255,255,1)';
@@ -599,7 +624,13 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
         tempCtx.lineCap = 'round';
         tempCtx.lineJoin = 'round';
     
-        if (activeTool === 'rectangle') {
+        if (activeTool === 'pin') {
+            tempCtx.globalCompositeOperation = 'source-over';
+            tempCtx.beginPath();
+            tempCtx.moveTo(startPos.x, startPos.y);
+            tempCtx.lineTo(lastPos.x, lastPos.y);
+            tempCtx.stroke();
+        } else if (activeTool === 'rectangle') {
             tempCtx.fillRect(startPos.x, startPos.y, lastPos.x - startPos.x, lastPos.y - startPos.y);
         } else if (activeTool === 'lasso') {
             if (strokePointsRef.current.length > 2) {
@@ -627,11 +658,26 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
         lastPosRef.current = null;
     };
     
-    const handleUndo = () => historyIndex > 0 && setHistoryIndex(historyIndex - 1);
-    const handleRedo = () => historyIndex < history.length - 1 && setHistoryIndex(historyIndex + 1);
+    const handleUndo = () => maskHistoryIndex > 0 && setMaskHistoryIndex(maskHistoryIndex - 1);
+    const handleRedo = () => maskHistoryIndex < maskHistory.length - 1 && setMaskHistoryIndex(maskHistoryIndex + 1);
+
+    const handleResetToOriginal = () => {
+        if (imageHistoryIndex > 0) {
+            setImageHistoryIndex(0);
+            setCurrentImageSrc(imageHistory[0]);
+        }
+    };
+
+    const handleStepBack = () => {
+        if (imageHistoryIndex > 0) {
+            const newIndex = imageHistoryIndex - 1;
+            setImageHistoryIndex(newIndex);
+            setCurrentImageSrc(imageHistory[newIndex]);
+        }
+    };
 
     const handleGenerate = async () => {
-        if (isMaskEmpty(history[historyIndex])) {
+        if (isMaskEmpty(maskHistory[maskHistoryIndex])) {
             setError("Please select an area to edit by drawing a mask first.");
             return;
         }
@@ -649,8 +695,8 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
                 tempCanvas.width = naturalWidth;
                 tempCanvas.height = naturalHeight;
                 const tempCtx = tempCanvas.getContext('2d');
-                if (tempCtx && history[historyIndex]) {
-                    const maskData = history[historyIndex];
+                if (tempCtx && maskHistory[maskHistoryIndex]) {
+                    const maskData = maskHistory[maskHistoryIndex];
                     const newData = new Uint8ClampedArray(maskData.data);
                     for (let i = 0; i < newData.length; i += 4) {
                         if (newData[i+3] > 0) {
@@ -714,10 +760,20 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
                     break;
             }
 
-
             const response = await generateDesign(fullPrompt, originalImageBase64, [{ data: maskBase64.data, mimeType: maskBase64.mimeType }], DEFAULT_AI_MODEL);
             
-            setCurrentImageSrc(`data:image/png;base64,${response}`);
+            const newImageSrc = `data:image/png;base64,${response}`;
+            
+            const newHistory = imageHistory.slice(0, imageHistoryIndex + 1);
+            newHistory.push(newImageSrc);
+    
+            while (newHistory.length > 5) { // Original + 4 edits
+                newHistory.shift();
+            }
+    
+            setImageHistory(newHistory);
+            setImageHistoryIndex(newHistory.length - 1);
+            setCurrentImageSrc(newImageSrc);
             setPrompt('');
 
         } catch (e) {
@@ -771,12 +827,12 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
             case 'lasso':
             case 'rectangle':
             case 'polyline':
+            case 'pin':
                 return 'cursor-crosshair';
             default:
                 return 'cursor-default';
         }
     }
-
 
     const ToolButton: React.FC<{ tool: Tool, label: string, children: React.ReactNode }> = ({ tool, label, children }) => (
         <button
@@ -789,58 +845,69 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
         </button>
     );
 
+    const verticalButtonClasses = "p-2.5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-dark-text-secondary hover:text-dark-text hover:bg-dark-primary";
+    const headerButtonClasses = "p-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-dark-text-secondary hover:text-dark-text hover:bg-dark-border";
+
     return (
         <div className="fixed inset-0 bg-dark-primary flex flex-col h-full w-full z-10 animate-fade-in">
             {/* Header */}
-            <header className="flex-shrink-0 bg-dark-secondary flex items-center justify-between p-2 text-dark-text relative">
-                {/* Left side: Back Button */}
-                <div className="flex-shrink-0">
-                    <button onClick={onClose} className="p-2 rounded-lg hover:bg-dark-border" title="Back">
+            <header className="flex-shrink-0 bg-dark-secondary flex items-center justify-between p-2 text-dark-text">
+                <div className="flex-1 flex justify-start items-center gap-2">
+                     <button onClick={onClose} className={headerButtonClasses} title="Back">
                         <ArrowLeftIcon className="w-6 h-6" />
                     </button>
                 </div>
-
-                {/* Center: Actions */}
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-4">
-                    <div className="flex items-center gap-1">
-                         <button onClick={handleUndo} disabled={historyIndex <= 0} className="p-2 rounded-lg hover:bg-dark-border disabled:opacity-50" title="Undo"><UndoIcon className="w-6 h-6" /></button>
-                         <button onClick={handleRedo} disabled={historyIndex >= history.length - 1} className="p-2 rounded-lg hover:bg-dark-border disabled:opacity-50" title="Redo"><RedoIcon className="w-6 h-6" /></button>
-                    </div>
-                     <div className="w-px h-6 bg-dark-border"></div>
-                     <div className="flex items-center gap-1">
-                        <button onClick={() => handleZoom('out')} className="p-2 rounded-lg hover:bg-dark-border" title="Zoom Out"><ZoomOutIcon className="w-6 h-6" /></button>
-                        <button onClick={fitToScreen} className="p-2 rounded-lg hover:bg-dark-border" title="Fit to Screen"><ViewfinderCircleIcon className="w-6 h-6" /></button>
-                        <button onClick={() => handleZoom('in')} className="p-2 rounded-lg hover:bg-dark-border" title="Zoom In"><ZoomInIcon className="w-6 h-6" /></button>
-                    </div>
+                 <div className="flex-shrink-0">
+                    <h2 className="text-lg font-bold">Advanced Editor</h2>
                 </div>
-
-                {/* Right side: Title and Apply */}
-                <div className="flex-shrink-0 flex items-center gap-4">
-                    <h2 className="text-lg font-bold hidden sm:block">Advanced Editor</h2>
+                <div className="flex-1 flex justify-end items-center gap-2">
+                    <button onClick={handleStepBack} disabled={imageHistoryIndex <= 0} className={headerButtonClasses} title="Step Back Through Modifications"><BackwardStepIcon className="w-6 h-6" /></button>
+                    <button onClick={handleResetToOriginal} disabled={imageHistoryIndex <= 0} className={headerButtonClasses} title="Reset to Original"><ArrowPathIcon className="w-6 h-6" /></button>
+                    <div className="h-6 w-px mx-1 bg-dark-border"></div>
                     <button onClick={() => onComplete(currentImageSrc)} className="p-2 rounded-lg hover:bg-dark-border text-accent" title="Apply Changes">
                         <ApplyIcon className="w-6 h-6" />
                     </button>
                 </div>
             </header>
             
-            {/* Canvas Area */}
-            <main 
-                ref={containerRef} 
-                className="flex-grow relative overflow-hidden bg-black/20"
-                onMouseDown={handleInteractionStart}
-                onTouchStart={handleInteractionStart}
-                onMouseMove={handleInteractionMove}
-                onTouchMove={handleInteractionMove}
-                onMouseUp={handleInteractionEnd}
-                onTouchEnd={handleInteractionEnd}
-                onMouseLeave={handleMouseLeave}
-                onTouchCancel={handleInteractionEnd}
-                onWheel={handleWheel}
-            >
-                <canvas ref={imageCanvasRef} className="absolute inset-0 pointer-events-none" />
-                <canvas ref={maskCanvasRef} className="absolute inset-0 pointer-events-none" />
-                <canvas ref={interactionCanvasRef} className={`absolute inset-0 ${getCursor()}`} />
-            </main>
+            <div className="flex-grow flex flex-row-reverse overflow-hidden">
+                {/* Main Vertical Toolbar */}
+                <aside className="w-20 flex-shrink-0 bg-dark-secondary flex flex-col items-center justify-center gap-2 p-2 border-r border-dark-border">
+                    <button onClick={() => setActiveTool('pan')} className={`${verticalButtonClasses} ${activeTool === 'pan' ? 'bg-accent text-white' : ''}`} title="Pan">
+                        <MoveIcon className="w-6 h-6" />
+                    </button>
+                    
+                    <div className="h-px w-full my-1 bg-dark-border"></div>
+                    
+                    <button onClick={handleUndo} disabled={maskHistoryIndex <= 0} className={verticalButtonClasses} title="Undo"><UndoIcon className="w-6 h-6" /></button>
+                    <button onClick={handleRedo} disabled={maskHistoryIndex >= maskHistory.length - 1} className={verticalButtonClasses} title="Redo"><RedoIcon className="w-6 h-6" /></button>
+
+                    <div className="h-px w-full my-1 bg-dark-border"></div>
+
+                    <button onClick={() => handleZoom('in')} className={verticalButtonClasses} title="Zoom In"><ZoomInIcon className="w-6 h-6" /></button>
+                    <button onClick={() => handleZoom('out')} className={verticalButtonClasses} title="Zoom Out"><ZoomOutIcon className="w-6 h-6" /></button>
+                    <button onClick={fitToScreen} className={verticalButtonClasses} title="Fit to Screen"><ViewfinderCircleIcon className="w-6 h-6" /></button>
+                </aside>
+
+                 {/* Canvas Area */}
+                <main 
+                    ref={containerRef} 
+                    className="flex-grow relative overflow-hidden bg-black/20"
+                    onMouseDown={handleInteractionStart}
+                    onTouchStart={handleInteractionStart}
+                    onMouseMove={handleInteractionMove}
+                    onTouchMove={handleInteractionMove}
+                    onMouseUp={handleInteractionEnd}
+                    onTouchEnd={handleInteractionEnd}
+                    onMouseLeave={handleMouseLeave}
+                    onTouchCancel={handleInteractionEnd}
+                    onWheel={handleWheel}
+                >
+                    <canvas ref={imageCanvasRef} className="absolute inset-0 pointer-events-none" />
+                    <canvas ref={maskCanvasRef} className="absolute inset-0 pointer-events-none" />
+                    <canvas ref={interactionCanvasRef} className={`absolute inset-0 ${getCursor()}`} />
+                </main>
+            </div>
 
             {/* Footer */}
             <footer className="flex-shrink-0 bg-dark-secondary/90 backdrop-blur-sm shadow-lg">
@@ -865,7 +932,7 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
                         />
                         <button
                             onClick={handleGenerate}
-                            disabled={isLoading || isMaskEmpty(history[historyIndex])}
+                            disabled={isLoading || isMaskEmpty(maskHistory[maskHistoryIndex])}
                             className="bg-accent hover:bg-accent-hover disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center transition-colors"
                         >
                             {isLoading 
@@ -876,7 +943,7 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
                         </button>
                     </div>
                      {/* Contextual Tool Options */}
-                    {(activeTool === 'brush' || activeTool === 'eraser') && (
+                    {(activeTool === 'brush' || activeTool === 'eraser' || activeTool === 'pin') && (
                         <div className="bg-dark-primary p-2 rounded-lg flex items-center gap-4 text-sm animate-fade-in">
                             <label className="text-dark-text-secondary whitespace-nowrap">
                                 Brush Size
@@ -895,8 +962,8 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
 
                 {/* Main Toolbar */}
                 <div className="flex justify-center items-center gap-2 p-2 bg-black/20 overflow-x-auto">
-                    <ToolButton tool="pan" label="Pan"><MoveIcon className="w-6 h-6" /></ToolButton>
-                    <ToolButton tool="brush" label="Brush"><ManualSelectIcon className="w-6 h-6" /></ToolButton>
+                    <ToolButton tool="brush" label="Brush"><PainterBrushIcon className="w-6 h-6" /></ToolButton>
+                    <ToolButton tool="pin" label="Pin"><ManualSelectIcon className="w-6 h-6" /></ToolButton>
                     <ToolButton tool="eraser" label="Eraser"><EraserIcon className="w-6 h-6" /></ToolButton>
                     <ToolButton tool="lasso" label="Lasso"><LassoIcon className="w-6 h-6" /></ToolButton>
                     <ToolButton tool="rectangle" label="Rectangle"><RectangleSelectIcon className="w-6 h-6" /></ToolButton>
