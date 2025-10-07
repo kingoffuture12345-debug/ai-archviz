@@ -5,18 +5,12 @@ interface StyleGridProps {
     options: DesignOption[];
     selectedValue: string;
     onSelect: (value: string) => void;
-    columns?: number;
 }
 
-const StyleGrid: React.FC<StyleGridProps> = ({ options, selectedValue, onSelect, columns = 4 }) => {
-    const gridColsClass = {
-        2: 'grid-cols-2',
-        4: 'grid-cols-4',
-    }[columns] || 'grid-cols-4';
-    
+const StyleGrid: React.FC<StyleGridProps> = ({ options, selectedValue, onSelect }) => {
     return (
         <div className="w-full">
-            <div className={`grid ${gridColsClass} gap-3`}>
+            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-3">
                 {options.map((option) => {
                     const isSelected = selectedValue === option.prompt;
                     const Icon = option.icon;
@@ -33,13 +27,13 @@ const StyleGrid: React.FC<StyleGridProps> = ({ options, selectedValue, onSelect,
                             onClick={() => onSelect(option.prompt)}
                             className={cardClasses}
                         >
-                            <div className="flex flex-col h-full p-2 text-center">
+                            <div className="flex flex-col h-full p-2 md:p-3 text-center">
                                 <div className="flex-grow flex items-center justify-center">
                                     {Icon && (
                                         <Icon className={`w-8 h-8 transition-colors duration-200 ${isSelected ? 'text-accent' : 'text-light-text-secondary dark:text-dark-text-secondary group-hover:text-light-text dark:group-hover:text-dark-text'}`} />
                                     )}
                                 </div>
-                                <span className={`block text-xs font-semibold leading-tight w-full ${isSelected ? 'text-accent' : 'text-light-text-secondary dark:text-dark-text-secondary group-hover:text-light-text dark:group-hover:text-dark-text'}`}>
+                                <span className={`block text-xs md:text-sm font-semibold leading-tight w-full ${isSelected ? 'text-accent' : 'text-light-text-secondary dark:text-dark-text-secondary group-hover:text-light-text dark:group-hover:text-dark-text'}`}>
                                     {option.label}
                                 </span>
                             </div>

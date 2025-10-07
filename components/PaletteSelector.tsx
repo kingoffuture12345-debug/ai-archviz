@@ -1,6 +1,7 @@
 import React from 'react';
 import { PaletteOption } from '../types';
 import { SparklesIcon } from './icons/SparklesIcon';
+import { NoSymbolIcon } from './icons/NoSymbolIcon';
 
 interface PaletteSelectorProps {
     options: PaletteOption[];
@@ -11,7 +12,7 @@ interface PaletteSelectorProps {
 const PaletteSelector: React.FC<PaletteSelectorProps> = ({ options, selectedValue, onSelect }) => {
     return (
         <div className="w-full">
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-3">
                 {options.map((option) => {
                     const isSelected = selectedValue === option.promptValue;
                     const cardClasses = `
@@ -23,9 +24,13 @@ const PaletteSelector: React.FC<PaletteSelectorProps> = ({ options, selectedValu
 
                     return (
                         <button key={option.promptValue} onClick={() => onSelect(option.promptValue)} className={cardClasses}>
-                            <div className="flex flex-col items-center justify-between h-full p-2">
+                            <div className="flex flex-col items-center justify-between h-full p-2 md:p-3">
                                 <div className="flex-grow w-full flex items-center justify-center overflow-hidden rounded-md">
-                                    {option.promptValue === 'surprise-me' ? (
+                                    {option.promptValue === 'none' ? (
+                                        <div className="w-full h-full flex items-center justify-center rounded-md bg-dark-primary">
+                                            <NoSymbolIcon className="w-8 h-8 text-dark-text-secondary" />
+                                        </div>
+                                    ) : option.promptValue === 'surprise-me' ? (
                                         <div className="w-full h-full flex items-center justify-center rounded-md bg-gradient-to-br from-red-500 via-yellow-400 to-blue-500">
                                             <SparklesIcon className="w-8 h-8 text-white" />
                                         </div>
@@ -48,7 +53,7 @@ const PaletteSelector: React.FC<PaletteSelectorProps> = ({ options, selectedValu
                                         </div>
                                     )}
                                 </div>
-                                <span className={`block text-xs font-semibold mt-2 text-center truncate w-full ${isSelected ? 'text-accent' : 'text-light-text-secondary dark:text-dark-text-secondary group-hover:text-light-text dark:group-hover:text-dark-text'}`}>
+                                <span className={`block text-xs md:text-sm font-semibold mt-2 text-center truncate w-full ${isSelected ? 'text-accent' : 'text-light-text-secondary dark:text-dark-text-secondary group-hover:text-light-text dark:group-hover:text-dark-text'}`}>
                                     {option.name}
                                 </span>
                             </div>

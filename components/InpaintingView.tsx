@@ -6,7 +6,7 @@ import { WandSparklesIcon } from './icons/WandSparklesIcon';
 import { ZoomInIcon } from './icons/ZoomInIcon';
 import { ZoomOutIcon } from './icons/ZoomOutIcon';
 import { LassoIcon } from './icons/LassoIcon';
-import { generateDesign } from '../services/geminiService';
+import { generateDesign, correctText } from '../services/geminiService';
 import { DEFAULT_AI_MODEL } from '../constants';
 import { RedoIcon } from './icons/RedoIcon';
 import { ApplyIcon } from './icons/ApplyIcon';
@@ -17,23 +17,13 @@ import { RectangleSelectIcon } from './icons/RectangleSelectIcon';
 import { PolylineSelectIcon } from './icons/PolylineSelectIcon';
 import { FilterIcon } from './icons/FilterIcon';
 import { PainterBrushIcon } from './icons/PainterBrushIcon';
-import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { BackwardStepIcon } from './icons/BackwardStepIcon';
+import { fileToBase64 } from '../utils/imageHelpers';
+import DictationButton from './DictationButton';
+import { notify } from '../utils/notification';
+import { Bars3Icon } from './icons/Bars3Icon';
+import { XMarkIcon } from './icons/XMarkIcon';
 
-
-const fileToBase64 = (file: File): Promise<{ data: string; mimeType: string }> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => {
-            const result = reader.result as string;
-            const mimeType = result.split(':')[1].split(';')[0];
-            const base64Data = result.split(',')[1];
-            resolve({ data: base64Data, mimeType });
-        };
-        reader.onerror = (error) => reject(error);
-    });
-};
 
 const isMaskEmpty = (imageData: ImageData | undefined): boolean => {
     if (!imageData) return true;
@@ -58,6 +48,7 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
     const [prompt, setPrompt] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [isCorrectingText, setIsCorrectingText] = useState(false);
     const [activeTool, setActiveTool] = useState<Tool>('brush');
     const [brushSize, setBrushSize] = useState(40);
     
@@ -70,6 +61,7 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
     const [maskingMode, setMaskingMode] = useState<MaskingMode>('normal');
     
     const [viewTransform, setViewTransform] = useState({ scale: 1, offsetX: 0, offsetY: 0 });
+    const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
 
     const imageRef = useRef<HTMLImageElement | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -77,6 +69,7 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
     const maskCanvasRef = useRef<HTMLCanvasElement>(null); // For permanent mask strokes
     const interactionCanvasRef = useRef<HTMLCanvasElement>(null); // For temporary visuals like cursors, lasso lines
     const workingMaskDataRef = useRef<ImageData | null>(null);
+    const textBeforeDictation = useRef('');
 
     const isInteractingRef = useRef(false);
     const interactionStartPosRef = useRef<{ x: number, y: number } | null>(null);
@@ -84,6 +77,16 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
     const mousePositionRef = useRef<{ x: number, y: number } | null>(null);
     const lastEventCoordsRef = useRef<{ clientX: number, clientY: number } | null>(null);
     const strokePointsRef = useRef<{ x: number, y: number }[]>([]);
+
+    // FIX: Add an effect to lock body scroll when the inpainting view is active.
+    // This prevents any background scrolling while the user is in this full-screen editor.
+    useEffect(() => {
+        const originalOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = originalOverflow;
+        };
+    }, []); // Empty dependency array ensures this runs only on mount and unmount.
 
     const handleToggleMaskingMode = () => {
         setMaskingMode(currentMode => {
@@ -113,6 +116,46 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
                 };
         }
     }, [maskingMode]);
+
+    const handleDictationStart = () => {
+        const currentPrompt = prompt;
+        if (currentPrompt.length > 0 && !/\s$/.test(currentPrompt)) {
+            textBeforeDictation.current = currentPrompt + ' ';
+        } else {
+            textBeforeDictation.current = currentPrompt;
+        }
+    };
+
+    const handleDictationUpdate = (transcript: string) => {
+        setPrompt(textBeforeDictation.current + transcript);
+    };
+
+    const handleDictationStop = async (finalTranscript: string) => {
+        const rawAppendedPrompt = textBeforeDictation.current + finalTranscript;
+        setPrompt(rawAppendedPrompt);
+
+        if (!finalTranscript.trim()) {
+            return;
+        }
+
+        setIsCorrectingText(true);
+        try {
+            const correctedTranscript = await correctText(finalTranscript);
+            setPrompt(currentPrompt => {
+                if (currentPrompt.endsWith(finalTranscript)) {
+                    const base = currentPrompt.slice(0, currentPrompt.length - finalTranscript.length);
+                    return base + correctedTranscript;
+                }
+                return currentPrompt;
+            });
+        } catch (e) {
+            const errorMessage = e instanceof Error ? e.message : 'An unknown error occurred.';
+            notify(`Failed to correct text: ${errorMessage}`);
+            console.error("Text correction error:", e);
+        } finally {
+            setIsCorrectingText(false);
+        }
+    };
 
     useEffect(() => {
         if (activeTool !== 'polyline') {
@@ -661,19 +704,15 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
     const handleUndo = () => maskHistoryIndex > 0 && setMaskHistoryIndex(maskHistoryIndex - 1);
     const handleRedo = () => maskHistoryIndex < maskHistory.length - 1 && setMaskHistoryIndex(maskHistoryIndex + 1);
 
-    const handleResetToOriginal = () => {
-        if (imageHistoryIndex > 0) {
-            setImageHistoryIndex(0);
-            setCurrentImageSrc(imageHistory[0]);
-        }
-    };
-
     const handleStepBack = () => {
-        if (imageHistoryIndex > 0) {
-            const newIndex = imageHistoryIndex - 1;
-            setImageHistoryIndex(newIndex);
-            setCurrentImageSrc(imageHistory[newIndex]);
+        if (imageHistory.length <= 1) {
+            return; // Can't cycle if there's only one or zero images
         }
+        // Cycle backwards through history.
+        // The modulo operator handles wrapping from 0 to the last index.
+        const newIndex = (imageHistoryIndex - 1 + imageHistory.length) % imageHistory.length;
+        setImageHistoryIndex(newIndex);
+        setCurrentImageSrc(imageHistory[newIndex]);
     };
 
     const handleGenerate = async () => {
@@ -727,36 +766,14 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
             let fullPrompt = '';
             switch (maskingMode) {
                 case 'strict':
-                    fullPrompt = `**HYPER-STRICT INPAINTING PROTOCOL:**
-**MANDATORY SPATIAL BINDING:** The user's request, \`"${userPrompt}"\`, is spatially bound to the object(s) under the mask. You are required to identify the object indicated by the mask and apply the edit **exclusively** to it.
-
-**CORE DIRECTIVES (NON-NEGOTIABLE):**
-1.  **ZERO DEVIATION:** Your output MUST be an identical, pixel-for-pixel copy of the original image for ALL pixels outside the provided mask. There is ZERO tolerance for any alteration, color shift, or blurring outside the masked zone.
-2.  **PRECISION BLENDING:** Analyze the boundary of the masked area. The new content you generate inside the mask must seamlessly and flawlessly blend with the surrounding, unaltered pixels. Match lighting, texture, and color perfectly to create an invisible seam.
-3.  **EXECUTE REQUEST:** Execute the user's request ONLY within the white masked zone on the object identified by the spatial binding rule.
-4.  **OUTPUT FORMAT:** Your output MUST be the final, full-frame, edited image with the exact same dimensions as the original. Do not output text or explanations.`;
+                    fullPrompt = `Perform a precise inpainting task. The first image is the source, the second is the mask. The user's request is: "${userPrompt}". Apply this edit ONLY within the white area of the mask. Pixels outside the mask MUST remain unchanged. Blend the seam perfectly. Your output must ONLY be the final edited image.`;
                     break;
                 case 'smart':
-                    fullPrompt = `**SMART MASKING PROTOCOL:**
-**MANDATORY SPATIAL BINDING:** The user's request, \`"${userPrompt}"\`, is spatially bound to the object(s) indicated by the mask. You MUST apply the edit to the object(s) under or immediately associated with the mask. You are STRICTLY forbidden from editing similar objects located elsewhere in the image.
-
-**INSTRUCTIONS:**
-1.  Analyze the image context within and around the provided mask.
-2.  Apply the user's edit to the spatially bound object.
-3.  You have creative freedom to intelligently adjust the boundaries of the edit based on the scene's objects and lighting to create the most seamless and photorealistic result. For example, if the mask partially covers an object, you should edit the entire object.
-4.  Preserve unrelated areas far from the mask.
-5.  Your output must ONLY be the final photorealistic image.`;
+                    fullPrompt = `Perform a smart inpainting task. The first image is the source, the second image is a mask indicating an object of interest. The user's request is: "${userPrompt}". Intelligently apply this edit to the entire object highlighted by the mask, even if the mask is imprecise. The result should be seamless and photorealistic. Your output must ONLY be the final edited image.`;
                     break;
                 case 'normal':
                 default:
-                    fullPrompt = `**NORMAL MASKING PROTOCOL:**
-**CRITICAL DIRECTIVE - SPATIAL BINDING:** The following user request, \`"${userPrompt}"\`, describes a change that must be applied ONLY to the object or area highlighted by the provided mask. Do not edit other parts of the image.
-
-**INSTRUCTIONS:**
-1.  Identify the object or area under the mask.
-2.  Apply the user's edit.
-3.  The edit should primarily affect the masked area but can blend naturally into the immediate surroundings for a more realistic result.
-4.  Your output must ONLY be the final photorealistic image.`;
+                    fullPrompt = `Transform the original image based on the following request: "${userPrompt}". The edit should be applied to the area defined by the second image, which is a mask. Blend the result naturally with the surrounding context. Your output must ONLY be the final edited image.`;
                     break;
             }
 
@@ -856,13 +873,19 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
                      <button onClick={onClose} className={headerButtonClasses} title="Back">
                         <ArrowLeftIcon className="w-6 h-6" />
                     </button>
+                    <button
+                        onClick={() => setIsSidePanelOpen(true)}
+                        className={headerButtonClasses}
+                        title="خيارات إضافية"
+                    >
+                        <Bars3Icon className="w-6 h-6" />
+                    </button>
                 </div>
                  <div className="flex-shrink-0">
                     <h2 className="text-lg font-bold">Advanced Editor</h2>
                 </div>
                 <div className="flex-1 flex justify-end items-center gap-2">
-                    <button onClick={handleStepBack} disabled={imageHistoryIndex <= 0} className={headerButtonClasses} title="Step Back Through Modifications"><BackwardStepIcon className="w-6 h-6" /></button>
-                    <button onClick={handleResetToOriginal} disabled={imageHistoryIndex <= 0} className={headerButtonClasses} title="Reset to Original"><ArrowPathIcon className="w-6 h-6" /></button>
+                    <button onClick={handleStepBack} disabled={imageHistory.length <= 1} className={headerButtonClasses} title="التعديل السابق (دائري)"><BackwardStepIcon className="w-6 h-6" /></button>
                     <div className="h-6 w-px mx-1 bg-dark-border"></div>
                     <button onClick={() => onComplete(currentImageSrc)} className="p-2 rounded-lg hover:bg-dark-border text-accent" title="Apply Changes">
                         <ApplyIcon className="w-6 h-6" />
@@ -921,15 +944,33 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
                         >
                             <FilterIcon className={`w-6 h-6 transition-all duration-300 ${maskingModeClassName}`} />
                         </button>
-                        <input 
-                            type="text"
-                            value={prompt}
-                            onChange={(e) => setPrompt(e.target.value)}
-                            className="flex-grow bg-dark-primary border-2 border-dark-border rounded-lg p-3 text-dark-text placeholder:text-dark-text-secondary focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
-                            placeholder="Describe edit, or leave blank to remove..."
-                            disabled={isLoading}
-                            dir="auto"
-                        />
+                        <div className="relative flex-grow">
+                            <input 
+                                type="text"
+                                value={prompt}
+                                onChange={(e) => setPrompt(e.target.value)}
+                                className="w-full bg-dark-primary border-2 border-dark-border rounded-lg p-3 pr-12 text-dark-text placeholder:text-dark-text-secondary focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
+                                placeholder="Describe edit, or leave blank to remove..."
+                                disabled={isLoading || isCorrectingText}
+                                dir="auto"
+                            />
+                            <div className="absolute inset-y-0 right-0 flex items-center pr-3 gap-1">
+                                {isCorrectingText && (
+                                    <div title="Correcting dictation...">
+                                        <svg className="animate-spin h-5 w-5 text-purple-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    </div>
+                                )}
+                                <DictationButton
+                                    onStart={handleDictationStart}
+                                    onUpdate={handleDictationUpdate}
+                                    onStop={handleDictationStop}
+                                    disabled={isLoading || isCorrectingText}
+                                />
+                            </div>
+                        </div>
                         <button
                             onClick={handleGenerate}
                             disabled={isLoading || isMaskEmpty(maskHistory[maskHistoryIndex])}
@@ -970,6 +1011,32 @@ const InpaintingView: React.FC<InpaintingViewProps> = ({ imageUrl, onClose, onCo
                     <ToolButton tool="polyline" label="Polyline"><PolylineSelectIcon className="w-6 h-6" /></ToolButton>
                 </div>
             </footer>
+
+            {isSidePanelOpen && (
+                <>
+                    <div
+                        className="absolute inset-0 bg-black/50 z-20 animate-fade-in"
+                        onClick={() => setIsSidePanelOpen(false)}
+                        aria-hidden="true"
+                    ></div>
+                    <div
+                        className="absolute top-0 right-0 bottom-0 w-80 bg-dark-secondary z-30 shadow-2xl flex flex-col transform transition-transform duration-300 ease-in-out animate-slide-in-right"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="side-panel-title"
+                    >
+                        <div className="flex items-center justify-between p-4 border-b border-dark-border">
+                            <h3 id="side-panel-title" className="text-lg font-bold">لوحة الخيارات</h3>
+                            <button onClick={() => setIsSidePanelOpen(false)} className="p-1 rounded-full hover:bg-dark-border" aria-label="Close options panel">
+                                <XMarkIcon className="w-6 h-6" />
+                            </button>
+                        </div>
+                        <div className="p-4 flex-grow overflow-y-auto">
+                            <p className="text-dark-text-secondary text-sm">سيتم إضافة الخيارات هنا قريبًا.</p>
+                        </div>
+                    </div>
+                </>
+            )}
         </div>
     );
 };

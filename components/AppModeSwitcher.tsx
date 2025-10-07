@@ -4,6 +4,7 @@ import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
 import { PencilSquareIcon } from './icons/PencilSquareIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { MapIcon } from './icons/MapIcon';
+import { ClockIcon } from './icons/ClockIcon';
 
 interface AppModeSwitcherProps {
     currentMode: AppMode;
@@ -22,6 +23,10 @@ const modeDetails = {
     [AppMode.PlanToView]: {
         label: 'تحويل المخطط',
         icon: MapIcon,
+    },
+    [AppMode.History]: {
+        label: 'السجل',
+        icon: ClockIcon,
     }
 };
 
@@ -47,6 +52,8 @@ const AppModeSwitcher: React.FC<AppModeSwitcherProps> = ({ currentMode, onModeCh
         setIsOpen(false);
     };
 
+    const availableModes = Object.values(AppMode).filter(mode => mode !== AppMode.History);
+
     return (
         <div className="relative" ref={wrapperRef}>
             <button 
@@ -62,7 +69,7 @@ const AppModeSwitcher: React.FC<AppModeSwitcherProps> = ({ currentMode, onModeCh
             {isOpen && (
                 <div className="absolute z-20 mt-2 w-64 left-0 origin-top-left bg-light-primary dark:bg-dark-secondary rounded-lg shadow-2xl ring-1 ring-black ring-opacity-5 focus:outline-none animate-fade-in-scale" role="listbox">
                     <div className="py-1">
-                        {Object.values(AppMode).map(mode => {
+                        {availableModes.map(mode => {
                             const { label, icon: Icon } = modeDetails[mode];
                             return (
                                 <button

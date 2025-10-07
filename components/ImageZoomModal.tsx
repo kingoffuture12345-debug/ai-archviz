@@ -4,65 +4,80 @@ import { XMarkIcon } from './icons/XMarkIcon';
 import { ZoomInIcon } from './icons/ZoomInIcon';
 import { ZoomOutIcon } from './icons/ZoomOutIcon';
 import { ViewfinderCircleIcon } from './icons/ViewfinderCircleIcon';
+import { EditIcon } from './icons/EditIcon';
 
 interface ImageZoomModalProps {
     imageUrl: string | null;
     onClose: () => void;
+    onGoToAdvancedEditor?: () => void;
+    showAdvancedEditorButton?: boolean;
 }
 
-const ImageZoomModal: React.FC<ImageZoomModalProps> = ({ imageUrl, onClose }) => {
-    const [transform, setTransform] = useState({ scale: 1, offsetX: 0, offsetY: 0 });
+const ImageZoomModal: React.FC<ImageZoomModalProps> = ({ imageUrl, onClose, onGoToAdvancedEditor, showAdvancedEditorButton = false }) => {
+    const [scale, setScale] = useState(1);
+    const [offset, setOffset] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
     const [panStart, setPanStart] = useState({ x: 0, y: 0 });
-
-    const imageRef = useRef<HTMLImageElement>(null);
+    const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+    const [isImageLoaded, setIsImageLoaded] = useState(false);
+    
     const containerRef = useRef<HTMLDivElement>(null);
-
-    const calculateFitTransform = useCallback(() => {
-        if (!imageRef.current || !containerRef.current) {
-            return { scale: 1, offsetX: 0, offsetY: 0 };
-        }
-        const image = imageRef.current;
-        const container = containerRef.current;
-        
-        const containerWidth = container.clientWidth;
-        const containerHeight = container.clientHeight;
-        const imageWidth = image.naturalWidth;
-        const imageHeight = image.naturalHeight;
-
-        if (imageWidth === 0 || imageHeight === 0) {
-             return { scale: 1, offsetX: 0, offsetY: 0 };
-        }
-
-        const scaleX = containerWidth / imageWidth;
-        const scaleY = containerHeight / imageHeight;
-        const scale = Math.min(scaleX, scaleY, 1);
-
-        const offsetX = (containerWidth - imageWidth * scale) / 2;
-        const offsetY = (containerHeight - imageHeight * scale) / 2;
-
-        return { scale, offsetX, offsetY };
-    }, []);
+    const imageWrapperRef = useRef<HTMLDivElement>(null);
 
     const resetView = useCallback(() => {
-        const fitTransform = calculateFitTransform();
-        setTransform(fitTransform);
-    }, [calculateFitTransform]);
+        if (!imageDimensions.width || !containerRef.current) {
+            return;
+        }
+        const container = containerRef.current;
+        const containerWidth = container.clientWidth;
+        const containerHeight = container.clientHeight;
+
+        const scaleX = containerWidth / imageDimensions.width;
+        const scaleY = containerHeight / imageDimensions.height;
+        const initialScale = Math.min(scaleX, scaleY) * 0.95; // 95% zoom for padding
+
+        setScale(initialScale);
+        
+        const scaledWidth = imageDimensions.width * initialScale;
+        const scaledHeight = imageDimensions.height * initialScale;
+        const offsetX = (containerWidth - scaledWidth) / 2;
+        const offsetY = (containerHeight - scaledHeight) / 2;
+
+        setOffset({ x: offsetX, y: offsetY });
+    }, [imageDimensions]);
 
     useEffect(() => {
-        const image = imageRef.current;
-        if (imageUrl && image) {
-            const handleLoad = () => resetView();
-            image.addEventListener('load', handleLoad);
-            // If image is already cached/loaded
-            if (image.complete) {
-                handleLoad();
-            }
-            return () => image.removeEventListener('load', handleLoad);
+        const originalOverflow = document.body.style.overflow;
+        if (imageUrl) {
+            document.body.style.overflow = 'hidden';
         }
-    }, [imageUrl, resetView]);
+        return () => {
+            document.body.style.overflow = originalOverflow;
+        };
+    }, [imageUrl]);
+
+    useEffect(() => {
+        if (!imageUrl) {
+            setIsImageLoaded(false);
+            return;
+        }
+
+        setIsImageLoaded(false);
+        const img = new Image();
+        img.src = imageUrl;
+        img.onload = () => {
+            setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+            setIsImageLoaded(true);
+        };
+        img.onerror = () => console.error("Failed to load image for zoom modal.");
+    }, [imageUrl]);
+
+    useEffect(() => {
+        if (isImageLoaded) {
+            resetView();
+        }
+    }, [isImageLoaded, resetView]);
     
-    // Handle window resize
     useEffect(() => {
         window.addEventListener('resize', resetView);
         return () => window.removeEventListener('resize', resetView);
@@ -74,57 +89,80 @@ const ImageZoomModal: React.FC<ImageZoomModalProps> = ({ imageUrl, onClose }) =>
 
     const handleWheel = (e: React.WheelEvent) => {
         e.preventDefault();
-        const scaleAmount = -e.deltaY * 0.001;
-        const newScale = transform.scale * (1 + scaleAmount);
-        const clampedScale = Math.max(0.1, Math.min(newScale, 10));
+        if (!containerRef.current) return;
 
-        const rect = containerRef.current!.getBoundingClientRect();
+        const rect = containerRef.current.getBoundingClientRect();
+        const scaleAmount = -e.deltaY * 0.001;
+        const newScale = Math.max(0.1, Math.min(scale * (1 + scaleAmount), 10));
+        
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
-
-        const newOffsetX = mouseX - (mouseX - transform.offsetX) * (clampedScale / transform.scale);
-        const newOffsetY = mouseY - (mouseY - transform.offsetY) * (clampedScale / transform.scale);
         
-        setTransform({ scale: clampedScale, offsetX: newOffsetX, offsetY: newOffsetY });
+        const imageX = (mouseX - offset.x) / scale;
+        const imageY = (mouseY - offset.y) / scale;
+        
+        const newOffsetX = mouseX - imageX * newScale;
+        const newOffsetY = mouseY - imageY * newScale;
+
+        setScale(newScale);
+        setOffset({ x: newOffsetX, y: newOffsetY });
     };
 
     const handleZoom = (direction: 'in' | 'out') => {
         const scaleAmount = 0.2;
         const newScale = direction === 'in' 
-            ? transform.scale * (1 + scaleAmount) 
-            : transform.scale / (1 + scaleAmount);
+            ? scale * (1 + scaleAmount) 
+            : scale / (1 + scaleAmount);
         const clampedScale = Math.max(0.1, Math.min(newScale, 10));
-
-        const container = containerRef.current!;
+        
+        const container = containerRef.current;
+        if (!container) return;
         const centerX = container.clientWidth / 2;
         const centerY = container.clientHeight / 2;
         
-        const newOffsetX = centerX - (centerX - transform.offsetX) * (clampedScale / transform.scale);
-        const newOffsetY = centerY - (centerY - transform.offsetY) * (clampedScale / transform.scale);
+        const imageX = (centerX - offset.x) / scale;
+        const imageY = (centerY - offset.y) / scale;
+        
+        const newOffsetX = centerX - imageX * newScale;
+        const newOffsetY = centerY - imageY * newScale;
 
-        setTransform({ scale: clampedScale, offsetX: newOffsetX, offsetY: newOffsetY });
+        setScale(clampedScale);
+        setOffset({ x: newOffsetX, y: newOffsetY });
     };
 
-    const handleMouseDown = (e: React.MouseEvent) => {
+    const handlePanStart = (e: React.MouseEvent | React.TouchEvent) => {
+        if ('button' in e && e.button !== 0) return;
+        if ('touches' in e && e.touches.length > 1) return;
         e.preventDefault();
+        const point = 'touches' in e ? e.touches[0] : e;
+        if (!point) return;
+
         setIsPanning(true);
         setPanStart({
-            x: e.clientX - transform.offsetX,
-            y: e.clientY - transform.offsetY,
+            x: point.clientX - offset.x,
+            y: point.clientY - offset.y,
         });
     };
     
-    const handleMouseMove = (e: React.MouseEvent) => {
+    const handlePanMove = (e: React.MouseEvent | React.TouchEvent) => {
         if (!isPanning) return;
         e.preventDefault();
-        setTransform(prev => ({
-            ...prev,
-            offsetX: e.clientX - panStart.x,
-            offsetY: e.clientY - panStart.y,
-        }));
+
+        if ('touches' in e && e.touches.length > 1) {
+            setIsPanning(false);
+            return;
+        }
+
+        const point = 'touches' in e ? e.touches[0] : e;
+        if (!point) return;
+        
+        setOffset({
+            x: point.clientX - panStart.x,
+            y: point.clientY - panStart.y,
+        });
     };
     
-    const handleMouseUpOrLeave = () => {
+    const handlePanEnd = () => {
         setIsPanning(false);
     };
 
@@ -140,27 +178,52 @@ const ImageZoomModal: React.FC<ImageZoomModalProps> = ({ imageUrl, onClose }) =>
                 className="relative w-full h-full overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
                 onWheel={handleWheel}
+                onMouseDown={handlePanStart}
+                onMouseMove={handlePanMove}
+                onMouseUp={handlePanEnd}
+                onMouseLeave={handlePanEnd}
+                onTouchStart={handlePanStart}
+                onTouchMove={handlePanMove}
+                onTouchEnd={handlePanEnd}
+                onTouchCancel={handlePanEnd}
             >
-                <div
-                    className={`absolute w-full h-full ${isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
-                    onMouseDown={handleMouseDown}
-                    onMouseMove={handleMouseMove}
-                    onMouseUp={handleMouseUpOrLeave}
-                    onMouseLeave={handleMouseUpOrLeave}
-                    style={{
-                        transform: `translate(${transform.offsetX}px, ${transform.offsetY}px) scale(${transform.scale})`,
-                        transformOrigin: '0 0',
-                    }}
-                >
-                    <img
-                        ref={imageRef}
-                        src={imageUrl}
-                        alt="Zoomed view"
-                        className="block max-w-none max-h-none shadow-2xl"
-                        draggable="false"
-                    />
-                </div>
+                {!isImageLoaded ? (
+                    <div className="text-white animate-pulse" role="status">
+                        جاري تحميل الصورة...
+                    </div>
+                ) : (
+                    <div
+                        ref={imageWrapperRef}
+                        className={`absolute ${isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
+                        style={{
+                            top: 0,
+                            left: 0,
+                            width: imageDimensions.width,
+                            height: imageDimensions.height,
+                            transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+                            transformOrigin: 'top left',
+                        }}
+                    >
+                        <img
+                            src={imageUrl}
+                            alt="Zoomed view"
+                            className="block w-full h-full shadow-2xl"
+                            draggable="false"
+                        />
+                    </div>
+                )}
                 
+                {showAdvancedEditorButton && onGoToAdvancedEditor && (
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onGoToAdvancedEditor(); }}
+                        className="absolute top-4 left-4 bg-accent text-white py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-accent-hover transition-all duration-200 z-20 animate-fade-in"
+                        aria-label="Go to advanced editor"
+                    >
+                        <EditIcon className="w-5 h-5" />
+                        <span>المحرر المتقدم</span>
+                    </button>
+                )}
+
                 <button
                     onClick={onClose}
                     className="absolute top-4 right-4 p-2 rounded-full bg-black/50 text-white hover:bg-black/80 transition-colors z-20"

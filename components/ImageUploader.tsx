@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { UploadIcon } from './icons/UploadIcon';
+import { CropIcon } from './icons/CropIcon'; // Import the CropIcon
 
 interface ImageUploaderProps {
     onImageUpload: (file: File) => void;
@@ -67,14 +68,14 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
         setIsDraggingOver(false);
     };
 
-    const dropzoneClasses = `flex-grow border-2 border-dashed rounded-xl flex items-center justify-center transition-colors duration-300 relative overflow-hidden ${
+    const dropzoneClasses = `w-full border-2 border-dashed rounded-xl flex items-center justify-center transition-colors duration-300 relative overflow-hidden bg-dark-primary ${
         isDraggingOver 
             ? 'border-accent bg-accent/10'
             : 'border-light-border dark:border-dark-border hover:border-accent'
-    } ${beforeImage ? 'cursor-zoom-in' : 'cursor-pointer'}`;
+    } ${beforeImage ? '' : 'cursor-pointer aspect-video'}`;
 
     return (
-        <div className="bg-light-secondary dark:bg-dark-secondary p-4 rounded-2xl shadow-lg flex flex-col h-full">
+        <div className="bg-light-secondary dark:bg-dark-secondary p-4 rounded-2xl shadow-lg flex flex-col">
             <h2 className="text-xl font-bold text-center text-light-text dark:text-dark-text mb-4">قبل</h2>
             <div 
                 className={dropzoneClasses}
@@ -92,7 +93,11 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
                     className="hidden"
                 />
                 {beforeImage ? (
-                    <img src={beforeImage} alt="Before" className="w-full h-full object-cover" />
+                    <div 
+                        className="relative w-full cursor-pointer"
+                    >
+                        <img src={beforeImage} alt="Before" className="w-full h-auto block rounded-lg" />
+                    </div>
                 ) : (
                     <div className={`text-center text-light-text-secondary dark:text-dark-text-secondary p-4 pointer-events-none transition-all duration-300 ease-in-out transform ${isDraggingOver ? 'scale-105 opacity-80' : 'scale-100'}`}>
                         <UploadIcon className="w-12 h-12 mx-auto mb-2" />

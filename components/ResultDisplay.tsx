@@ -1,22 +1,25 @@
 import React from 'react';
 import { ImageIcon } from './icons/ImageIcon';
 import { DownloadIcon } from './icons/DownloadIcon';
+import { GridPatternIcon } from './icons/GridPatternIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
 
 interface ResultDisplayProps {
     afterImage: string | null;
     isLoading: boolean;
     onImageClick: () => void;
+    onUseAsSource?: () => void;
 }
 
 const LoadingSkeleton: React.FC = () => (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-gray-200 dark:bg-gray-800 animate-pulse">
-        <ImageIcon className="w-16 h-16 text-gray-400 dark:text-gray-600 mb-4" />
-        <div className="w-3/4 h-4 bg-gray-300 dark:bg-gray-700 rounded-md mb-2"></div>
-        <div className="w-1/2 h-4 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+    <div className="w-full h-full flex flex-col items-center justify-center bg-gray-800 animate-pulse rounded-xl">
+        <ImageIcon className="w-16 h-16 text-gray-600 mb-4" />
+        <div className="w-3/4 h-4 bg-gray-700 rounded-md mb-2"></div>
+        <div className="w-1/2 h-4 bg-gray-700 rounded-md"></div>
     </div>
 );
 
-const ResultDisplay: React.FC<ResultDisplayProps> = ({ afterImage, isLoading, onImageClick }) => {
+const ResultDisplay: React.FC<ResultDisplayProps> = ({ afterImage, isLoading, onImageClick, onUseAsSource }) => {
     const handleDownload = () => {
         if (!afterImage) return;
         
@@ -33,17 +36,34 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ afterImage, isLoading, on
     };
 
     return (
-        <div className="bg-light-secondary dark:bg-dark-secondary p-4 rounded-2xl shadow-lg flex flex-col h-full">
-            <h2 className="text-xl font-bold text-center text-light-text dark:text-dark-text mb-4">بعد</h2>
-            <div className="relative flex-grow border-2 border-light-border dark:border-dark-border rounded-xl flex items-center justify-center overflow-hidden bg-light-primary dark:bg-dark-primary">
+        <div className="bg-light-secondary dark:bg-dark-secondary p-4 rounded-2xl shadow-lg flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-light-text dark:text-dark-text">بعد</h2>
+                {afterImage && onUseAsSource && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onUseAsSource();
+                        }}
+                        className="p-2 rounded-full text-dark-text-secondary hover:bg-dark-border hover:text-accent transition-colors"
+                        aria-label="استخدام كصورة أساسية"
+                        title="استخدام كصورة أساسية"
+                    >
+                        <ArrowPathIcon className="w-5 h-5" />
+                    </button>
+                )}
+            </div>
+            <div className="relative w-full border-2 border-light-border dark:border-dark-border rounded-xl flex items-center justify-center overflow-hidden bg-light-primary dark:bg-dark-primary">
                 {isLoading ? (
-                    <LoadingSkeleton />
+                    <div className="w-full aspect-video">
+                        <LoadingSkeleton />
+                    </div>
                 ) : afterImage ? (
                     <div 
-                        className="w-full h-full relative cursor-zoom-in"
+                        className="w-full relative cursor-pointer"
                         onClick={onImageClick}
                     >
-                        <img src={afterImage} alt="After" className="w-full h-full object-cover" />
+                        <img src={afterImage} alt="After" className="w-full h-auto block rounded-lg" />
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -58,7 +78,7 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ afterImage, isLoading, on
                         </button>
                     </div>
                 ) : (
-                    <div className="text-center text-light-text-secondary dark:text-dark-text-secondary p-4">
+                    <div className="w-full aspect-video flex flex-col items-center justify-center text-center text-light-text-secondary dark:text-dark-text-secondary p-4">
                         <ImageIcon className="w-12 h-12 mx-auto mb-2" />
                         <p>ستظهر الصورة المُصممة هنا</p>
                     </div>
